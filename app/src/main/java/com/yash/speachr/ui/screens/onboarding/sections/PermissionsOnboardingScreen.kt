@@ -19,9 +19,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,7 +55,16 @@ fun PermissionsOnboardingScreen(
 ) {
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(pageCount = { 4 })
-
+    // Entry animation
+    var startAnim by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        startAnim = true
+    }
+    val scale by animateFloatAsState(
+        targetValue = if (startAnim) 1f else 0.95f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "entryScale"
+    )
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -61,6 +73,7 @@ fun PermissionsOnboardingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .scale(scale)
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -283,9 +296,11 @@ private fun MicGraphic() {
         }
 
         // Pulse rings
-        Canvas(modifier = Modifier
-            .fillMaxSize()
-            .scale(pulse)) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .scale(pulse)
+        ) {
             drawCircle(
                 color = Coral40.copy(alpha = 0.2f),
                 radius = size.minDimension / 2
