@@ -11,71 +11,64 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
-import com.yash.speachr.ui.screens.onboarding.OnboadringScreen
 
 @Composable
 fun AppNavigation(modifier: Modifier = Modifier) {
-
-    val isLogin = false
-
-    if (isLogin) {
-        val backStack = rememberNavBackStack(Routes.Home)
-        Scaffold(
-            modifier = modifier,
-            bottomBar = {
-                BottomNavigationBar(
-                    selectedKey = backStack.last(),
-                    onSelectKey = { key ->
-                        backStack.add(key)
-                    }
-                )
-            }
-        ) { innerPadding ->
-            NavDisplay(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                backStack = backStack,
-                onBack = {
-                    backStack.removeLastOrNull()
-                },
-                entryProvider = entryProvider {
-                    entry<Routes.Home> {
-                        Text(
-                            text = "HOME",
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    entry<Routes.Style> {
-                        Text(
-                            text = "Style",
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    entry<Routes.Flow> {
-                        Text(
-                            text = "Flow",
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    entry<Routes.Settings> {
-                        Text(
-                            text = "Settings",
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
+    val backStack = rememberNavBackStack(Routes.Home)
+    Scaffold(
+        modifier = modifier,
+        bottomBar = {
+            BottomNavigationBar(
+                selectedKey = backStack.last(),
+                onSelectKey = { key ->
+                    backStack.add(key)
                 }
             )
         }
-    } else {
-        OnboadringScreen()
+    ) { innerPadding ->
+        NavDisplay(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            backStack = backStack,
+            onBack = {
+                backStack.removeLastOrNull()
+            },
+            entryProvider = entryProvider {
+                entry<Routes.Home> {
+                    Text(
+                        text = "HOME",
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                entry<Routes.Style> {
+                    Text(
+                        text = "Style",
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                entry<Routes.Flow> {
+                    Text(
+                        text = "Flow",
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                entry<Routes.Settings> {
+                    Text(
+                        text = "Settings",
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+            }
+        )
     }
+
 }

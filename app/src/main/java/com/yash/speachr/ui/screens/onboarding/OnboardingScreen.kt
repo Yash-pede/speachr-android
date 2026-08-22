@@ -1,6 +1,7 @@
 package com.yash.speachr.ui.screens.onboarding
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -12,7 +13,10 @@ import com.yash.speachr.ui.screens.onboarding.sections.PermissionsOnboardingScre
 import com.yash.speachr.ui.screens.onboarding.sections.SetupPreferencesScreen
 
 @Composable
-fun OnboadringScreen() {
+fun OnboardingScreen(
+    isAlreadyAuthenticated: Boolean = false,
+    onOnboardingComplete: () -> Unit = {}
+) {
 
     val steps = OnboardingStep.all
 
@@ -20,9 +24,18 @@ fun OnboadringScreen() {
         mutableIntStateOf(0)
     }
 
+    // Auto-advance if we just authenticated
+    LaunchedEffect(isAlreadyAuthenticated) {
+        if (isAlreadyAuthenticated && currentIndex == 0) {
+            currentIndex = 1
+        }
+    }
+
     fun nextStep() {
         if (currentIndex < steps.lastIndex) {
             currentIndex++
+        } else {
+            onOnboardingComplete()
         }
     }
 
@@ -31,11 +44,7 @@ fun OnboadringScreen() {
     when (currentStep) {
 
         OnboardingStep.Welcome -> {
-            LoginOnboarding(
-                onClick = {
-                    nextStep()
-                }
-            )
+            LoginOnboarding()
         }
 
         OnboardingStep.InfoScreen -> {
