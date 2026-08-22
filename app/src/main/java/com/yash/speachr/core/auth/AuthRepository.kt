@@ -32,4 +32,12 @@ class AuthRepository(context: Context, private val supabase: SupabaseClient) {
     fun setOnboardingCompleted(completed: Boolean) {
         sharedPrefs.edit().putBoolean("onboarding_completed", completed).apply()
     }
+
+    fun getOnboardingStep(): Int {
+        return sharedPrefs.getInt("onboarding_step", 0)
+    }
+
+    fun setOnboardingStep(step: Int) {
+        sharedPrefs.edit().putInt("onboarding_step", step).apply()
+    }
 }

@@ -71,6 +71,12 @@ class AuthViewModel(
         }
     }
 
+    fun getOnboardingStep(): Int = repository.getOnboardingStep()
+
+    fun updateOnboardingStep(step: Int) {
+        repository.setOnboardingStep(step)
+    }
+
     suspend fun signIn(request: GetCredentialRequest, context: Context, nonce: String? = null): Exception? {
         val credentialManager = CredentialManager.create(context)
         val failureMessage = "Sign in failed!"

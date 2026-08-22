@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">speachr</string>
+    <string name="accessibility_service_description">Enables Speachr to automatically paste transcribed text into apps you use. No data is stored or shared.</string>
 </resources>

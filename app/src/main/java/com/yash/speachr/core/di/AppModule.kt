@@ -3,6 +3,7 @@ package com.yash.speachr.core.di
 import com.yash.speachr.BuildConfig
 import com.yash.speachr.core.auth.AuthRepository
 import com.yash.speachr.core.auth.AuthViewModel
+import com.yash.speachr.core.permissions.PermissionViewModel
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
@@ -67,4 +68,5 @@ val appModule = module {
 
     // ViewModels
     viewModel { AuthViewModel(androidApplication(), get(), get()) }
+    viewModel { PermissionViewModel(androidApplication()) }
 }

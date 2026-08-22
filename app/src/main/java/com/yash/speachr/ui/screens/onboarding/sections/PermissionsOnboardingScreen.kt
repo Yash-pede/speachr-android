@@ -1,5 +1,8 @@
 package com.yash.speachr.ui.screens.onboarding.sections
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
@@ -16,14 +19,19 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,10 +43,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.yash.speachr.core.permissions.PermissionViewModel
 import com.yash.speachr.ui.theme.AppTheme
 import com.yash.speachr.ui.theme.Coral40
 import com.yash.speachr.ui.theme.Coral80
@@ -48,14 +62,98 @@ import com.yash.speachr.ui.theme.Neutral17
 import com.yash.speachr.ui.theme.Neutral30
 import com.yash.speachr.ui.theme.Neutral99
 import kotlinx.coroutines.launch
+import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun PermissionsOnboardingScreen(
-    onFinish: () -> Unit
+    onFinish: () -> Unit,
+    viewModel: PermissionViewModel = koinViewModel()
 ) {
+
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    val micGranted by viewModel.micGranted.collectAsState()
+    val overlayGranted by viewModel.overlayGranted.collectAsState()
+    val batteryIgnored by viewModel.batteryIgnored.collectAsState()
+    val accessibilityGranted by viewModel.accessibilityGranted.collectAsState()
+
+    var savedPage by rememberSaveable { mutableStateOf(0) }
+    val pagerState = rememberPagerState(initialPage = savedPage, pageCount = { 4 })
+    
+    LaunchedEffect(pagerState.currentPage) {
+        savedPage = pagerState.currentPage
+    }
+
+    var showRationaleDialog by rememberSaveable { mutableStateOf(false) }
+    var rationaleMessage by rememberSaveable { mutableStateOf("") }
+    var pendingPermission by rememberSaveable { mutableStateOf("") }
+
+    // Re-check permissions when returning to the app
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.checkPermissions()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        viewModel.checkPermissions()
+        if (!isGranted) {
+            rationaleMessage = "Microphone access is essential for Speachr to transcribe your voice. Please enable it in the app settings."
+            pendingPermission = Manifest.permission.RECORD_AUDIO
+            showRationaleDialog = true
+        }
+    }
+
     val scope = rememberCoroutineScope()
-    val pagerState = rememberPagerState(pageCount = { 4 })
-    // Entry animation
+
+    // Auto-scroll when permission is granted
+    LaunchedEffect(micGranted, overlayGranted, batteryIgnored, accessibilityGranted) {
+        val currentPage = pagerState.currentPage
+        val shouldScroll = when (currentPage) {
+            0 -> micGranted
+            1 -> overlayGranted
+            2 -> batteryIgnored
+            3 -> accessibilityGranted
+            else -> false
+        }
+        if (shouldScroll && currentPage < 3) {
+            pagerState.animateScrollToPage(currentPage + 1)
+        }
+    }
+
+    // Rationale Dialog
+    if (showRationaleDialog) {
+        AlertDialog(
+            onDismissRequest = { showRationaleDialog = false },
+            title = { Text("Permission Required") },
+            text = { Text(rationaleMessage) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRationaleDialog = false
+                    if (pendingPermission == Manifest.permission.RECORD_AUDIO) {
+                        viewModel.openMicSettings(context)
+                    }
+                }) {
+                    Text("Go to Settings")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRationaleDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     var startAnim by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         startAnim = true
@@ -106,7 +204,8 @@ fun PermissionsOnboardingScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                pageSpacing = 24.dp
+                pageSpacing = 24.dp,
+                userScrollEnabled = false // Prevent manual scrolling to force permission flow
             ) { page ->
                 val titles = listOf(
                     "Microphone Access",
@@ -118,7 +217,7 @@ fun PermissionsOnboardingScreen(
                     "Speachr needs to hear your voice to transcribe it perfectly. Your audio is never stored.",
                     "Allows the Speachr Bubble to float seamlessly over your keyboard and other apps.",
                     "Prevents your phone from pausing Speachr in the background for uninterrupted dictation.",
-                    "Reads text fields and inserts your dictation automatically, perfectly formatted every time."
+                    "Reads text fields and inserts your dictation automatically. Don't toggle the shortcut option. "
                 )
 
                 Column(
@@ -128,10 +227,10 @@ fun PermissionsOnboardingScreen(
                 ) {
                     // Custom Drawn Canvas Icons
                     when (page) {
-                        0 -> MicGraphic()
-                        1 -> WindowGraphic()
-                        2 -> BatteryGraphic()
-                        3 -> AccessibilityGraphic()
+                        0 -> MicGraphic(isGranted = micGranted)
+                        1 -> WindowGraphic(isGranted = overlayGranted)
+                        2 -> BatteryGraphic(isGranted = batteryIgnored)
+                        3 -> AccessibilityGraphic(isGranted = accessibilityGranted)
                     }
 
                     Spacer(modifier = Modifier.height(48.dp))
@@ -196,6 +295,14 @@ fun PermissionsOnboardingScreen(
 
             val isLastPage = pagerState.currentPage == 3
             val isOptionalPage = pagerState.currentPage == 2
+            
+            val currentPermissionGranted = when (pagerState.currentPage) {
+                0 -> micGranted
+                1 -> overlayGranted
+                2 -> batteryIgnored
+                3 -> accessibilityGranted
+                else -> false
+            }
 
             Box(
                 modifier = Modifier
@@ -203,31 +310,43 @@ fun PermissionsOnboardingScreen(
                     .scale(buttonScale)
                     .height(60.dp)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Neutral17)
+                    .background(if (currentPermissionGranted) Color(0xFF4CAF50) else Neutral17)
                     .clickable(interactionSource = interactionSource, indication = null) {
-                        if (isLastPage) {
-                            onFinish()
+                        if (currentPermissionGranted) {
+                            if (isLastPage) {
+                                onFinish()
+                            } else {
+                                scope.launch {
+                                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                                }
+                            }
                         } else {
-                            scope.launch {
-                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                            // Trigger permission request or open settings
+                            when (pagerState.currentPage) {
+                                0 -> micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                1 -> viewModel.openOverlaySettings(context)
+                                2 -> viewModel.openBatterySettings(context)
+                                3 -> viewModel.openAccessibilitySettings(context)
                             }
                         }
                     },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (isLastPage) "Finish Setup" else "Allow",
+                    text = if (currentPermissionGranted) {
+                        if (isLastPage) "Finish Setup" else "Next"
+                    } else "Allow",
                     color = Neutral99,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }
 
-            // Skip button for Optional page
-            if (isOptionalPage) {
+            // Skip button for Optional page or if already granted
+            if (isOptionalPage || currentPermissionGranted) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Skip for now",
+                    text = if (currentPermissionGranted) "" else "Skip for now",
                     color = Neutral30,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.clickable {
@@ -246,7 +365,7 @@ fun PermissionsOnboardingScreen(
 // ------------------------------------------------------------------------------------------------
 
 @Composable
-private fun MicGraphic() {
+private fun MicGraphic(isGranted: Boolean) {
     val infiniteTransition = rememberInfiniteTransition(label = "mic_anim")
     val pulse by infiniteTransition.animateFloat(
         initialValue = 0.8f, targetValue = 1.2f,
@@ -257,12 +376,14 @@ private fun MicGraphic() {
         label = "pulse"
     )
 
+    val color = if (isGranted) Color(0xFF4CAF50) else Coral40
+
     Box(
         modifier = Modifier
             .size(140.dp)
             .clip(CircleShape)
             .background(AppTheme.glassColors.surface)
-            .border(2.dp, Coral40, CircleShape),
+            .border(2.dp, color, CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.size(60.dp)) {
@@ -271,21 +392,21 @@ private fun MicGraphic() {
 
             // Mic body
             drawRoundRect(
-                color = Coral40,
+                color = color,
                 topLeft = Offset((size.width - micWidth) / 2, size.height * 0.1f),
                 size = Size(micWidth, micHeight),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(micWidth / 2, micWidth / 2)
             )
             // Mic stand
             drawLine(
-                color = Coral40,
+                color = color,
                 start = Offset(size.width * 0.3f, size.height * 0.75f),
                 end = Offset(size.width * 0.7f, size.height * 0.75f),
                 strokeWidth = 4f
             )
             // Mic arc
             drawArc(
-                color = Coral40,
+                color = color,
                 startAngle = 20f,
                 sweepAngle = 140f,
                 useCenter = false,
@@ -295,28 +416,31 @@ private fun MicGraphic() {
             )
         }
 
-        // Pulse rings
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .scale(pulse)
-        ) {
-            drawCircle(
-                color = Coral40.copy(alpha = 0.2f),
-                radius = size.minDimension / 2
-            )
+        if (!isGranted) {
+            // Pulse rings
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .scale(pulse)
+            ) {
+                drawCircle(
+                    color = color.copy(alpha = 0.2f),
+                    radius = size.minDimension / 2
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun WindowGraphic() {
+private fun WindowGraphic(isGranted: Boolean) {
+    val color = if (isGranted) Color(0xFF4CAF50) else Coral40
     Box(
         modifier = Modifier
             .size(140.dp)
             .clip(CircleShape)
             .background(AppTheme.glassColors.surface)
-            .border(2.dp, Coral40, CircleShape),
+            .border(2.dp, color, CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.size(70.dp)) {
@@ -329,7 +453,7 @@ private fun WindowGraphic() {
             )
             // Foreground Window
             drawRoundRect(
-                color = Coral40,
+                color = color,
                 topLeft = Offset(size.width * 0.4f, size.height * 0.4f),
                 size = Size(size.width * 0.5f, size.height * 0.5f),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
@@ -339,13 +463,14 @@ private fun WindowGraphic() {
 }
 
 @Composable
-private fun BatteryGraphic() {
+private fun BatteryGraphic(isGranted: Boolean) {
+    val color = if (isGranted) Color(0xFF4CAF50) else Gold40
     Box(
         modifier = Modifier
             .size(140.dp)
             .clip(CircleShape)
             .background(AppTheme.glassColors.surface)
-            .border(2.dp, Gold40, CircleShape),
+            .border(2.dp, color, CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.size(70.dp)) {
@@ -366,7 +491,7 @@ private fun BatteryGraphic() {
             )
             // Battery fill
             drawRoundRect(
-                color = Gold40,
+                color = color,
                 topLeft = Offset(size.width * 0.15f, size.height * 0.25f),
                 size = Size(size.width * 0.55f, size.height * 0.5f),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f)
@@ -376,19 +501,20 @@ private fun BatteryGraphic() {
 }
 
 @Composable
-private fun AccessibilityGraphic() {
+private fun AccessibilityGraphic(isGranted: Boolean) {
+    val color = if (isGranted) Color(0xFF4CAF50) else Coral40
     Box(
         modifier = Modifier
             .size(140.dp)
             .clip(CircleShape)
             .background(AppTheme.glassColors.surface)
-            .border(2.dp, Coral40, CircleShape),
+            .border(2.dp, color, CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.size(60.dp)) {
             // Head
             drawCircle(
-                color = Coral40,
+                color = color,
                 radius = size.width * 0.12f,
                 center = Offset(size.width * 0.5f, size.height * 0.15f)
             )
@@ -411,7 +537,7 @@ private fun AccessibilityGraphic() {
             }
             drawPath(
                 path = bodyPath,
-                color = Coral40,
+                color = color,
                 style = Stroke(width = 6f, cap = StrokeCap.Round)
             )
         }
