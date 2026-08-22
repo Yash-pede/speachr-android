@@ -119,23 +119,23 @@ fun OnboardingInfoScreen(
             }
 
             // --- Page Indicator Dots ---
-            if (startAnim) {
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(bottom = 24.dp)
-                ) {
-                    repeat(3) { index ->
-                        val color = if (index == 0) Coral40 else Neutral30.copy(alpha = 0.3f)
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 4.dp)
-                                .size(if (index == 0) 10.dp else 8.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                        )
-                    }
-                }
-            }
+//            if (startAnim) {
+//                Row(
+//                    horizontalArrangement = Arrangement.Center,
+//                    modifier = Modifier.padding(bottom = 24.dp)
+//                ) {
+//                    repeat(3) { index ->
+//                        val color = if (index == 0) Coral40 else Neutral30.copy(alpha = 0.3f)
+//                        Box(
+//                            modifier = Modifier
+//                                .padding(horizontal = 4.dp)
+//                                .size(if (index == 0) 10.dp else 8.dp)
+//                                .clip(CircleShape)
+//                                .background(color)
+//                        )
+//                    }
+//                }
+//            }
 
             // --- Next Button ---
             val interactionSource = remember { MutableInteractionSource() }

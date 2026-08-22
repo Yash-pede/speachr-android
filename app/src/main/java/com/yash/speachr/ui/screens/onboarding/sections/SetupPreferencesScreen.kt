@@ -1,5 +1,6 @@
 package com.yash.speachr.ui.screens.onboarding.sections
 
+import android.content.Context
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
@@ -25,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -35,6 +37,7 @@ import com.yash.speachr.ui.theme.Neutral10
 import com.yash.speachr.ui.theme.Neutral17
 import com.yash.speachr.ui.theme.Neutral30
 import com.yash.speachr.ui.theme.Neutral99
+import androidx.core.content.edit
 
 enum class ToneStrategy { AUTO, GLOBAL }
 enum class ManualTone { CASUAL, PROFESSIONAL, NEUTRAL }
@@ -48,6 +51,11 @@ fun SetupPreferencesScreen(
     var toneStrategy by remember { mutableStateOf(ToneStrategy.AUTO) }
     var manualTone by remember { mutableStateOf(ManualTone.PROFESSIONAL) }
     val scrollState = rememberScrollState()
+
+    val context = LocalContext.current
+
+    val userSettingsSharedPerfs =
+        context.getSharedPreferences("user_settings", Context.MODE_PRIVATE)
 
     // Entry animation
     var startAnim by remember { mutableStateOf(false) }
@@ -247,7 +255,16 @@ fun SetupPreferencesScreen(
                     .clickable(
                         interactionSource = interactionSource,
                         indication = null
-                    ) { onFinish() },
+                    ) {
+                        onFinish()
+                        userSettingsSharedPerfs.edit {
+                            putString("language", selectedLanguage)
+                                .putString("tone", toneStrategy.toString()).putString(
+                                    "manualtone",
+                                    manualTone.toString()
+                                )
+                        }
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 Text(

@@ -13,9 +13,7 @@ import org.koin.androidx.compose.koinViewModel
 fun SpeachrApp(
     authViewModel: AuthViewModel = koinViewModel()
 ) {
-    val authState = authViewModel.authState.collectAsStateWithLifecycle().value
-
-    when (authState) {
+    when (val authState = authViewModel.authState.collectAsStateWithLifecycle().value) {
         AuthState.Loading -> {
             SplashScreen()
         }
