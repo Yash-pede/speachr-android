@@ -8,8 +8,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
+import android.media.MediaRecorder
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.animation.core.*
@@ -35,7 +37,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -48,10 +49,14 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.yash.speachr.core.floating.FloatingViewModel
 import com.yash.speachr.ui.theme.*
 import kotlinx.coroutines.delay
+import org.koin.androidx.compose.koinViewModel
+import org.koin.core.component.KoinComponent
 
-class FloatingService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
+class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStoreOwner,
+    SavedStateRegistryOwner {
 
     private lateinit var windowManager: WindowManager
     private var composeView: ComposeView? = null
@@ -64,6 +69,7 @@ class FloatingService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedSta
     override val lifecycle: Lifecycle get() = lifecycleRegistry
     override val viewModelStore: ViewModelStore get() = store
     override val savedStateRegistry: SavedStateRegistry get() = savedStateController.savedStateRegistry
+
 
     override fun onCreate() {
         super.onCreate()
@@ -118,6 +124,7 @@ class FloatingService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedSta
             setViewTreeSavedStateRegistryOwner(this@FloatingService)
 
             setContent {
+                val viewModel: FloatingViewModel = koinViewModel()
                 FloatingBubbleContent(
                     onUpdatePosition = { dx, dy ->
                         this@FloatingService.layoutParams.x += dx.toInt()
@@ -125,8 +132,10 @@ class FloatingService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedSta
                         windowManager.updateViewLayout(this, this@FloatingService.layoutParams)
                     },
                     onCloseService = {
-//                        stopSelf()
-                    }
+                        stopSelf()
+                    },
+                    onClick = { viewModel.toggleRecording() },
+                    isRecording = viewModel.isRecording
                 )
             }
         }
@@ -148,6 +157,7 @@ class FloatingService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedSta
     override fun onBind(intent: Intent?): IBinder? = null
 }
 
+
 // --- Modularized UI Components ---
 
 @Composable
@@ -163,9 +173,11 @@ private fun RecordingRipple(rippleScale: Float, rippleAlpha: Float) {
 @Composable
 private fun SoundwaveBars(bars: List<Float>) {
     // Canvas for drawing animated soundwave bars during recording
-    Canvas(modifier = Modifier
-        .fillMaxSize()
-        .padding(horizontal = 14.dp, vertical = 18.dp)) {
+    Canvas(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp, vertical = 18.dp)
+    ) {
         val barCount = bars.size
         val spacing = 4.dp.toPx()
         val totalSpacing = spacing * (barCount - 1)
@@ -202,9 +214,10 @@ private fun IdleBubblePlaceholder() {
 @Composable
 private fun FloatingBubbleContent(
     onUpdatePosition: (dx: Float, dy: Float) -> Unit,
-    onCloseService: () -> Unit
+    onCloseService: () -> Unit,
+    onClick: () -> Unit,
+    isRecording: Boolean
 ) {
-    var isRecording by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
     var isClosing by remember { mutableStateOf(false) }
 
@@ -282,8 +295,10 @@ private fun FloatingBubbleContent(
             }
             .pointerInput(Unit) {
                 detectTapGestures(
-                    onTap = { isRecording = !isRecording },
-                    onLongPress = { isClosing = true }
+                    onTap = { onClick() },
+                    onLongPress = {
+                        isClosing = true
+                    },
                 )
             }
             .pointerInput(Unit) {

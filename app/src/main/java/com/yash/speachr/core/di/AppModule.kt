@@ -1,9 +1,12 @@
 package com.yash.speachr.core.di
 
+import android.util.Log
 import com.yash.speachr.BuildConfig
 import com.yash.speachr.core.auth.AuthRepository
 import com.yash.speachr.core.auth.AuthViewModel
+import com.yash.speachr.core.floating.FloatingViewModel
 import com.yash.speachr.core.permissions.PermissionViewModel
+import com.yash.speachr.core.repository.AudioRepository
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
@@ -13,7 +16,9 @@ import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
@@ -36,6 +41,9 @@ val appModule = module {
     single<HttpClient> {
         val supabase = get<SupabaseClient>()
         HttpClient(Android) {
+            defaultRequest {
+                url("http://localhost:3000/")
+            }
             install(ContentNegotiation) {
                 json(Json {
                     ignoreUnknownKeys = true
@@ -43,6 +51,11 @@ val appModule = module {
                 })
             }
             install(Logging) {
+                logger = object : Logger {
+                    override fun log(message: String) {
+                        Log.d("HTTP", message)
+                    }
+                }
                 level = LogLevel.ALL
             }
             install(io.ktor.client.plugins.auth.Auth) {
@@ -65,8 +78,10 @@ val appModule = module {
 
     // Repositories
     single { AuthRepository(get(), get()) }
+    single { AudioRepository(get()) }
 
     // ViewModels
     viewModel { AuthViewModel(androidApplication(), get(), get()) }
     viewModel { PermissionViewModel(androidApplication()) }
+    viewModel { FloatingViewModel(androidApplication(), get()) }
 }
