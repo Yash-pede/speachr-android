@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yash.speachr.core.auth.AuthState
 import com.yash.speachr.core.auth.AuthViewModel
+import com.yash.speachr.core.permissions.PermissionViewModel
 import com.yash.speachr.navigation.AppNavigation
 import com.yash.speachr.ui.screens.onboarding.OnboardingScreen
 import com.yash.speachr.ui.screens.splash.SplashScreen
@@ -11,9 +12,18 @@ import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun SpeachrApp(
-    authViewModel: AuthViewModel = koinViewModel()
+    authViewModel: AuthViewModel = koinViewModel(),
+    permissionViewModel: PermissionViewModel = koinViewModel()
 ) {
-    when (val authState = authViewModel.authState.collectAsStateWithLifecycle().value) {
+    val authState = authViewModel.authState.collectAsStateWithLifecycle().value
+    val micGranted = permissionViewModel.micGranted.collectAsStateWithLifecycle().value
+    val accessibilityGranted = permissionViewModel.accessibilityGranted.collectAsStateWithLifecycle().value
+
+    val overlayGranted = permissionViewModel.overlayGranted.collectAsStateWithLifecycle().value
+
+    val permissionsGranted = micGranted && accessibilityGranted && overlayGranted
+
+    when (authState) {
         AuthState.Loading -> {
             SplashScreen()
         }
@@ -28,7 +38,17 @@ fun SpeachrApp(
         }
 
         AuthState.Authenticated -> {
-            AppNavigation()
+            if (!permissionsGranted) {
+                OnboardingScreen(
+                    isAlreadyAuthenticated = true,
+                    onOnboardingComplete = {
+
+                    },
+                    forceStep = 4
+                )
+            } else {
+                AppNavigation()
+            }
         }
     }
 }

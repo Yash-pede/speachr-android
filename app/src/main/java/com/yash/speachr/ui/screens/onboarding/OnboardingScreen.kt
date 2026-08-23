@@ -18,13 +18,19 @@ import org.koin.androidx.compose.koinViewModel
 fun OnboardingScreen(
     isAlreadyAuthenticated: Boolean = false,
     onOnboardingComplete: () -> Unit = {},
+    forceStep: Int? = null,
     authViewModel: AuthViewModel = koinViewModel()
 ) {
 
     val steps = OnboardingStep.all
 
     var currentIndex by rememberSaveable {
-        mutableIntStateOf(authViewModel.getOnboardingStep())
+        mutableIntStateOf(forceStep ?: authViewModel.getOnboardingStep())
+    }
+
+    // Update currentIndex if forceStep changes
+    LaunchedEffect(forceStep) {
+        forceStep?.let { currentIndex = it }
     }
 
     // Save step whenever it changes

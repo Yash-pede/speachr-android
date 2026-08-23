@@ -44,7 +44,7 @@ class PermissionViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     private fun isAccessibilityServiceEnabled(context: Context): Boolean {
-        val expectedComponentName = "${context.packageName}/com.yash.speachr.services.SpeachrAccessibilityService"
+        val expectedComponentName = "${context.packageName}/com.yash.speachr.services.SpeachrPasteAccessibilityService"
         val settingValue = Settings.Secure.getString(
             context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         )
