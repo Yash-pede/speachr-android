@@ -11,7 +11,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import com.revenuecat.purchases.CustomerInfo
+import com.revenuecat.purchases.models.StoreTransaction
+import com.revenuecat.purchases.ui.revenuecatui.ExperimentalPreviewRevenueCatUIPurchasesAPI
+import com.revenuecat.purchases.ui.revenuecatui.Paywall
+import com.revenuecat.purchases.ui.revenuecatui.PaywallListener
+import com.revenuecat.purchases.ui.revenuecatui.PaywallOptions
 
+@OptIn(ExperimentalPreviewRevenueCatUIPurchasesAPI::class)
 @Composable
 fun AppNavigation(modifier: Modifier = Modifier) {
     val backStack = rememberNavBackStack(Routes.Home)
@@ -60,10 +67,22 @@ fun AppNavigation(modifier: Modifier = Modifier) {
                 }
 
                 entry<Routes.Settings> {
-                    Text(
-                        text = "Settings",
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
+                    Paywall(
+                        options = PaywallOptions.Builder(
+                            dismissRequest = { backStack.removeLastOrNull() }
+                        )
+                            .setListener(
+                                object : PaywallListener {
+                                    override fun onPurchaseCompleted(
+                                        customerInfo: CustomerInfo,
+                                        storeTransaction: StoreTransaction
+                                    ) {
+                                    }
+
+                                    override fun onRestoreCompleted(customerInfo: CustomerInfo) {}
+                                }
+                            )
+                            .build()
                     )
                 }
 

@@ -19,6 +19,7 @@ fun OnboardingScreen(
     isAlreadyAuthenticated: Boolean = false,
     onOnboardingComplete: () -> Unit = {},
     forceStep: Int? = null,
+    initialPermissionStep: Int = 0,
     authViewModel: AuthViewModel = koinViewModel()
 ) {
 
@@ -87,6 +88,7 @@ fun OnboardingScreen(
 
         OnboardingStep.PermissionsOnboarding -> {
             PermissionsOnboardingScreen(
+                initialPage = initialPermissionStep,
                 onFinish = {
                     nextStep()
                 }

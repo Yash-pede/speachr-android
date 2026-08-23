@@ -17,9 +17,12 @@ fun SpeachrApp(
 ) {
     val authState = authViewModel.authState.collectAsStateWithLifecycle().value
     val micGranted = permissionViewModel.micGranted.collectAsStateWithLifecycle().value
-    val accessibilityGranted = permissionViewModel.accessibilityGranted.collectAsStateWithLifecycle().value
+    val accessibilityGranted =
+        permissionViewModel.accessibilityGranted.collectAsStateWithLifecycle().value
 
     val overlayGranted = permissionViewModel.overlayGranted.collectAsStateWithLifecycle().value
+    val batteryOptimizationGranted =
+        permissionViewModel.batteryIgnored.collectAsStateWithLifecycle().value
 
     val permissionsGranted = micGranted && accessibilityGranted && overlayGranted
 
@@ -44,7 +47,12 @@ fun SpeachrApp(
                     onOnboardingComplete = {
 
                     },
-                    forceStep = 4
+                    forceStep = 4, // Permissions step
+                    initialPermissionStep = if (!micGranted) 0
+                    else if (!overlayGranted) 1
+                    else if(!batteryOptimizationGranted) 2
+                    else if (!accessibilityGranted) 3
+                    else 0
                 )
             } else {
                 AppNavigation()

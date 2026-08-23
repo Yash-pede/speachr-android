@@ -59,6 +59,9 @@ dependencies {
     implementation(libs.koin.android)
     implementation(libs.koin.androidx.compose)
 
+    implementation(libs.revenuecat.purchases)
+    implementation(libs.revenuecat.purchases.ui)
+
 
 
 

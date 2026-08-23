@@ -99,7 +99,7 @@ class AuthViewModel(
                 repository.signInWithGoogleIdToken(googleIdTokenCredential.idToken, nonce)
             }
 
-            Toast.makeText(context, "Sign in successful!", Toast.LENGTH_SHORT).show()
+//            Toast.makeText(context, "Sign in successful!", Toast.LENGTH_SHORT).show()
             Log.i(TAG, "(☞ﾟヮﾟ)☞  Sign in Successful!  ☜(ﾟヮﾟ☜)")
             null
         } catch (e: GoogleIdTokenParsingException) {
@@ -111,19 +111,19 @@ class AuthViewModel(
             Log.e(TAG, failureMessage + ": No credentials found", e)
             e
         } catch (e: GetCredentialCancellationException) {
-            Toast.makeText(context, "Sign-in cancelled", Toast.LENGTH_SHORT).show()
+//            Toast.makeText(context, "Sign-in cancelled", Toast.LENGTH_SHORT).show()
             Log.e(TAG, failureMessage + ": Sign-in was cancelled", e)
             e
         } catch (e: GetCredentialCustomException) {
-            Toast.makeText(context, failureMessage, Toast.LENGTH_SHORT).show()
+//            Toast.makeText(context, failureMessage, Toast.LENGTH_SHORT).show()
             Log.e(TAG, failureMessage + ": Issue with custom credential request", e)
             e
         } catch (e: GetCredentialException) {
-            Toast.makeText(context, failureMessage, Toast.LENGTH_SHORT).show()
+//            Toast.makeText(context, failureMessage, Toast.LENGTH_SHORT).show()
             Log.e(TAG, failureMessage + ": Failure getting credentials", e)
             e
         } catch (e: Exception) {
-            Toast.makeText(context, failureMessage, Toast.LENGTH_SHORT).show()
+//            Toast.makeText(context, failureMessage, Toast.LENGTH_SHORT).show()
             Log.e(TAG, failureMessage + ": Unexpected error", e)
             e
         }

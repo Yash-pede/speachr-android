@@ -66,6 +66,7 @@ import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun PermissionsOnboardingScreen(
+    initialPage: Int = 0,
     onFinish: () -> Unit,
     viewModel: PermissionViewModel = koinViewModel()
 ) {
@@ -78,8 +79,12 @@ fun PermissionsOnboardingScreen(
     val batteryIgnored by viewModel.batteryIgnored.collectAsState()
     val accessibilityGranted by viewModel.accessibilityGranted.collectAsState()
 
-    var savedPage by rememberSaveable { mutableStateOf(0) }
+    var savedPage by rememberSaveable { mutableStateOf(initialPage) }
     val pagerState = rememberPagerState(initialPage = savedPage, pageCount = { 4 })
+
+    LaunchedEffect(initialPage) {
+        pagerState.scrollToPage(initialPage)
+    }
     
     LaunchedEffect(pagerState.currentPage) {
         savedPage = pagerState.currentPage
