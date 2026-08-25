@@ -85,5 +85,5 @@ val appModule = module {
     viewModel { AuthViewModel(androidApplication(), get(), get()) }
     viewModel { PermissionViewModel(androidApplication()) }
     viewModel { FloatingViewModel(androidApplication(), get()) }
-    viewModel { SubscriptionViewModel() }
+    single { SubscriptionViewModel() }
 }
