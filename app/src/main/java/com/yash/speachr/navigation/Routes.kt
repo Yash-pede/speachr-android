@@ -10,12 +10,12 @@ sealed interface Routes : NavKey {
     data object Home : NavKey
 
     @Serializable
-    data object Style : NavKey
-
-    @Serializable
-    data object Flow : NavKey
+    data object History : NavKey
 
     @Serializable
     data object Settings : NavKey
+
+    @Serializable
+    data object Paywall : NavKey
 
 }

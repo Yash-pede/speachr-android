@@ -4,6 +4,7 @@ import android.util.Log
 import com.yash.speachr.BuildConfig
 import com.yash.speachr.core.auth.AuthRepository
 import com.yash.speachr.core.auth.AuthViewModel
+import com.yash.speachr.core.billing.SubscriptionViewModel
 import com.yash.speachr.core.floating.FloatingViewModel
 import com.yash.speachr.core.permissions.PermissionViewModel
 import com.yash.speachr.core.repository.AudioRepository
@@ -84,4 +85,5 @@ val appModule = module {
     viewModel { AuthViewModel(androidApplication(), get(), get()) }
     viewModel { PermissionViewModel(androidApplication()) }
     viewModel { FloatingViewModel(androidApplication(), get()) }
+    viewModel { SubscriptionViewModel() }
 }

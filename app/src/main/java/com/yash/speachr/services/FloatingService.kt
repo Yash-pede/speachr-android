@@ -125,6 +125,14 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
 
             setContent {
                 val viewModel: FloatingViewModel = koinViewModel()
+                val sharedPrefs = remember { context.getSharedPreferences("user_settings", Context.MODE_PRIVATE) }
+                
+                var baseSize by remember { mutableStateOf(sharedPrefs.getFloat("bubble_size", 1.0f)) }
+                var baseAlpha by remember { mutableStateOf(sharedPrefs.getFloat("bubble_alpha", 1.0f)) }
+
+                // Keep values updated (though Service might not recompose easily on SharedPreferences change unless we use a listener)
+                // For now, it will pick them up on service start or when overlay is shown.
+                
                 FloatingBubbleContent(
                     onUpdatePosition = { dx, dy ->
                         this@FloatingService.layoutParams.x += dx.toInt()
@@ -135,7 +143,9 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
                         stopSelf()
                     },
                     onClick = { viewModel.toggleRecording() },
-                    isRecording = viewModel.isRecording
+                    isRecording = viewModel.isRecording,
+                    baseSize = baseSize,
+                    baseAlpha = baseAlpha
                 )
             }
         }
@@ -216,7 +226,9 @@ private fun FloatingBubbleContent(
     onUpdatePosition: (dx: Float, dy: Float) -> Unit,
     onCloseService: () -> Unit,
     onClick: () -> Unit,
-    isRecording: Boolean
+    isRecording: Boolean,
+    baseSize: Float = 1.0f,
+    baseAlpha: Float = 1.0f
 ) {
     var isDragging by remember { mutableStateOf(false) }
     var isClosing by remember { mutableStateOf(false) }
@@ -232,15 +244,15 @@ private fun FloatingBubbleContent(
     val bubbleScale by animateFloatAsState(
         targetValue = when {
             isClosing -> 0f
-            isDragging -> 1.15f
-            isRecording -> 1.05f
-            else -> 1f
+            isDragging -> 1.15f * baseSize
+            isRecording -> 1.05f * baseSize
+            else -> 1f * baseSize
         },
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
         label = "bubbleScale"
     )
     val bubbleAlpha by animateFloatAsState(
-        targetValue = if (isClosing) 0f else 1f,
+        targetValue = if (isClosing) 0f else 1f * baseAlpha,
         animationSpec = tween(250),
         label = "bubbleAlpha"
     )

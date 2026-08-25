@@ -13,13 +13,9 @@ val TOP_LEVEL_DESTINATIONS = mapOf(
         iconRes = R.drawable.home_24px,
         title = "Home"
     ),
-    Routes.Style to BottomNavItem(
-        iconRes = R.drawable.brush_24px,
-        title = "Style"
-    ),
-    Routes.Flow to BottomNavItem(
-        iconRes = R.drawable.motion_mode_24px,
-        title = "Flow"
+    Routes.History to BottomNavItem(
+        iconRes = R.drawable.history_24px,
+        title = "History"
     ),
     Routes.Settings to BottomNavItem(
         iconRes = R.drawable.settings_24px,

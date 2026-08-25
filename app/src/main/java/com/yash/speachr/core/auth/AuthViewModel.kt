@@ -15,6 +15,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
+import com.revenuecat.purchases.Purchases
+import com.revenuecat.purchases.logInWith
 import com.yash.speachr.TAG
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
@@ -41,20 +43,31 @@ class AuthViewModel(
         observeAuth()
     }
 
+    fun setRevenuecatUser(userId: String) {
+        Purchases.sharedInstance.logInWith(userId, { error ->
+            Log.e(TAG, "Error while setting Purchase Id ${error.message}")
+        }) { customerInfo, created ->
+            Log.d(TAG, "Customer Info updated for purchase")
+        }
+    }
+
     private fun observeAuth() {
         viewModelScope.launch {
-            supabase.auth.sessionStatus.collect { status ->
-                _authState.value = when (status) {
+            supabase.auth.sessionStatus.collect {
+                _authState.value = when (it) {
                     is io.github.jan.supabase.auth.status.SessionStatus.Authenticated -> {
-                        if (repository.isOnboardingCompleted()) {
+                        if (repository.isOnboardingCompleted() && it.session.user?.id != null) {
+                            setRevenuecatUser(it.session.user!!.id)
                             AuthState.Authenticated
                         } else {
                             AuthState.Onboarding
                         }
                     }
+
                     is io.github.jan.supabase.auth.status.SessionStatus.NotAuthenticated -> {
                         AuthState.Unauthenticated
                     }
+
                     else -> {
                         AuthState.Loading
                     }
@@ -77,10 +90,14 @@ class AuthViewModel(
         repository.setOnboardingStep(step)
     }
 
-    suspend fun signIn(request: GetCredentialRequest, context: Context, nonce: String? = null): Exception? {
+    suspend fun signIn(
+        request: GetCredentialRequest,
+        context: Context,
+        nonce: String? = null
+    ): Exception? {
         val credentialManager = CredentialManager.create(context)
         val failureMessage = "Sign in failed!"
-        
+
         delay(250)
         return try {
             val result = credentialManager.getCredential(
@@ -91,12 +108,15 @@ class AuthViewModel(
 
             val credential = result.credential
             if (credential is CustomCredential &&
-                credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+            ) {
                 val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
                 Log.i(TAG, "Signed in as: ${googleIdTokenCredential.id}")
-                
+
                 // Sign in with Supabase
-                repository.signInWithGoogleIdToken(googleIdTokenCredential.idToken, nonce)
+                val response =
+                    repository.signInWithGoogleIdToken(googleIdTokenCredential.idToken, nonce)
+                setRevenuecatUser(response!!.id)
             }
 
 //            Toast.makeText(context, "Sign in successful!", Toast.LENGTH_SHORT).show()

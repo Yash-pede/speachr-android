@@ -5,6 +5,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.IDToken
+import io.github.jan.supabase.auth.user.UserInfo
 
 class AuthRepository(context: Context, private val supabase: SupabaseClient) {
 
@@ -13,12 +14,13 @@ class AuthRepository(context: Context, private val supabase: SupabaseClient) {
     suspend fun signInWithGoogleIdToken(
         googleIdToken: String,
         nonce: String? = null
-    ) {
+    ): UserInfo? {
         supabase.auth.signInWith(IDToken) {
             idToken = googleIdToken
             provider = Google
             this.nonce = nonce
         }
+        return supabase.auth.currentUserOrNull()
     }
 
     suspend fun signOut() {
