@@ -31,12 +31,12 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yash.speachr.R
 import com.yash.speachr.core.billing.SubscriptionViewModel
+import com.yash.speachr.core.model.ManualTone
+import com.yash.speachr.core.model.ToneStrategy
 import com.yash.speachr.core.permissions.PermissionViewModel
 import com.yash.speachr.ui.theme.*
 import org.koin.androidx.compose.koinViewModel
 
-enum class ToneStrategy { AUTO, GLOBAL }
-enum class ManualTone { CASUAL, PROFESSIONAL, NEUTRAL }
 
 @Composable
 fun SettingsScreen(

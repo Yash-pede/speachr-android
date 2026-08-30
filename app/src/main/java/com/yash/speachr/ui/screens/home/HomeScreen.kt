@@ -10,20 +10,27 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import com.yash.speachr.R
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.yash.speachr.core.database.DictationEntity
+import com.yash.speachr.ui.screens.home.viewmodel.HomeViewModel
 import com.yash.speachr.ui.theme.AppTheme
 import com.yash.speachr.ui.theme.Coral40
 import com.yash.speachr.ui.theme.Coral80
@@ -32,9 +39,15 @@ import com.yash.speachr.ui.theme.Neutral10
 import com.yash.speachr.ui.theme.Neutral17
 import com.yash.speachr.ui.theme.Neutral30
 import com.yash.speachr.ui.theme.Neutral99
+import org.koin.androidx.compose.koinViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(viewModel: HomeViewModel = koinViewModel()) {
+    val stats by viewModel.todayStats.collectAsStateWithLifecycle()
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(24.dp),
@@ -83,13 +96,13 @@ fun HomeScreen() {
             ) {
                 StatCard(
                     modifier = Modifier.weight(1f),
-                    value = "1,240",
+                    value = stats.totalWordsToday.toString(),
                     label = "Words Today",
                     color = Coral40
                 )
                 StatCard(
                     modifier = Modifier.weight(1f),
-                    value = "15m",
+                    value = "${stats.timeSavedMinutesToday}m",
                     label = "Time Saved",
                     color = Gold40
                 )
@@ -112,13 +125,13 @@ fun HomeScreen() {
                     text = "See all",
                     color = Coral40,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.clickable { /* TODO */ }
+                    modifier = Modifier.clickable { /* TODO: Navigate to History */ }
                 )
             }
         }
 
         // --- Recent Transcriptions List ---
-        items(dummyTranscriptions) { item ->
+        items(stats.recentDictations, key = { it.id }) { item ->
             TranscriptionCard(item)
         }
     }
@@ -154,21 +167,19 @@ private fun StatCard(
     }
 }
 
-data class TranscriptionItem(
-    val appName: String,
-    val appColor: Color,
-    val preview: String,
-    val timeAgo: String
-)
-
-private val dummyTranscriptions = listOf(
-    TranscriptionItem("WhatsApp", Color(0xFF25D366), "Hey, I'm running about 10 minutes late to the meeting. Traffic is crazy right now.", "2m ago"),
-    TranscriptionItem("Gmail", Color(0xFFEA4335), "Hi Team, just a quick update on the Q3 roadmap. We are on track to deliver the beta by next Friday.", "1h ago"),
-    TranscriptionItem("Slack", Color(0xFF4A154B), "Can someone take a look at the PR when they have a moment? It's blocking the merge.", "Yesterday")
-)
-
 @Composable
-private fun TranscriptionCard(item: TranscriptionItem) {
+private fun TranscriptionCard(item: DictationEntity) {
+    val timeAgo = remember(item.timestamp) {
+        val now = System.currentTimeMillis()
+        val diff = now - item.timestamp
+        when {
+            diff < 60_000 -> "Just now"
+            diff < 3600_000 -> "${diff / 60_000}m ago"
+            diff < 86400_000 -> "${diff / 3600_000}h ago"
+            else -> SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(item.timestamp))
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -178,15 +189,20 @@ private fun TranscriptionCard(item: TranscriptionItem) {
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // App Icon Placeholder
+        // Voice Icon instead of App Icon
         Box(
             modifier = Modifier
                 .size(40.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(item.appColor.copy(alpha = 0.2f)),
+                .background(Coral40.copy(alpha = 0.1f)),
             contentAlignment = Alignment.Center
         ) {
-            Box(modifier = Modifier.size(20.dp).clip(CircleShape).background(item.appColor))
+            Icon(
+                painter = painterResource(R.drawable.mic_24px),
+                contentDescription = null,
+                tint = Coral40,
+                modifier = Modifier.size(20.dp)
+            )
         }
 
         Spacer(modifier = Modifier.width(16.dp))
@@ -196,12 +212,12 @@ private fun TranscriptionCard(item: TranscriptionItem) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(item.appName, fontWeight = FontWeight.Bold, color = Neutral10)
-                Text(item.timeAgo, style = MaterialTheme.typography.bodySmall, color = Neutral30)
+                Text("${item.wordCount} words", fontWeight = FontWeight.Bold, color = Neutral10)
+                Text(timeAgo, style = MaterialTheme.typography.bodySmall, color = Neutral30)
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = item.preview,
+                text = item.text,
                 style = MaterialTheme.typography.bodyMedium,
                 color = Neutral30,
                 maxLines = 2,

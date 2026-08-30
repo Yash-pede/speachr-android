@@ -5,9 +5,12 @@ import com.yash.speachr.BuildConfig
 import com.yash.speachr.core.auth.AuthRepository
 import com.yash.speachr.core.auth.AuthViewModel
 import com.yash.speachr.core.billing.SubscriptionViewModel
+import com.yash.speachr.core.database.AppDatabase
 import com.yash.speachr.core.floating.FloatingViewModel
 import com.yash.speachr.core.permissions.PermissionViewModel
 import com.yash.speachr.core.repository.AudioRepository
+import com.yash.speachr.ui.screens.history.viewmodel.HistoryViewModel
+import com.yash.speachr.ui.screens.home.viewmodel.HomeViewModel
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
@@ -26,8 +29,19 @@ import kotlinx.serialization.json.Json
 import org.koin.android.ext.koin.androidApplication
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
+import androidx.room.Room
 
 val appModule = module {
+    // Database
+    single {
+        Room.databaseBuilder(
+            androidApplication(),
+            AppDatabase::class.java,
+            "speachr_db"
+        ).build()
+    }
+    single { get<AppDatabase>().dictationDao() }
+
     // Supabase
     single<SupabaseClient> {
         createSupabaseClient(
@@ -84,6 +98,8 @@ val appModule = module {
     // ViewModels
     viewModel { AuthViewModel(androidApplication(), get(), get()) }
     viewModel { PermissionViewModel(androidApplication()) }
-    viewModel { FloatingViewModel(androidApplication(), get()) }
+    viewModel { FloatingViewModel(androidApplication(), get(), get()) }
     single { SubscriptionViewModel() }
+    viewModel { HomeViewModel(get()) }
+    viewModel { HistoryViewModel(get()) }
 }

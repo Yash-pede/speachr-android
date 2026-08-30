@@ -13,10 +13,10 @@ import java.io.File
 
 class AudioRepository(private val client: HttpClient) {
 
-    suspend fun transcribeAudio(file: File): AudioTranscribeApiResponse? {
+    suspend fun transcribeAudio(file: File, tone: String): AudioTranscribeApiResponse? {
         Log.d(
             "AudioRepository",
-            "Attempting to upload file: ${file.absolutePath} size: ${file.length()}"
+            "Attempting to upload file: ${file.absolutePath} size: ${file.length()} with tone: $tone"
         )
         return try {
             val response = client.post("/audio/transcribe") {
@@ -26,6 +26,7 @@ class AudioRepository(private val client: HttpClient) {
                             append("file", file.readBytes(), Headers.build {
                                 append(HttpHeaders.ContentDisposition, "filename=\"${file.name}\"")
                             })
+                            append("tone", tone)
                         }
                     )
                 )

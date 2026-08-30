@@ -9,15 +9,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.yash.speachr.core.database.DictationDao
+import com.yash.speachr.core.database.DictationEntity
+import com.yash.speachr.core.model.ToneStrategy
 import com.yash.speachr.core.repository.AudioRepository
 import com.yash.speachr.services.SpeachrPasteAccessibilityService
 import kotlinx.coroutines.launch
 import java.io.File
 import java.time.Instant
+import android.content.Context
 
 class FloatingViewModel(
     application: Application,
-    private val audioRepository: AudioRepository
+    private val audioRepository: AudioRepository,
+    private val dictationDao: DictationDao
 ) : AndroidViewModel(application) {
 
     var isRecording by mutableStateOf(false)
@@ -33,6 +38,8 @@ class FloatingViewModel(
             startRecording()
         }
     }
+
+    private var recordingStartTime: Long = 0
 
     private fun startRecording() {
         if (isRecording) return
@@ -54,6 +61,7 @@ class FloatingViewModel(
                 prepare()
                 start()
             }
+            recordingStartTime = System.currentTimeMillis()
             isRecording = true
         } catch (e: Exception) {
             Log.e("FloatingVM", "MediaRecorder prepare() failed", e)
@@ -67,6 +75,8 @@ class FloatingViewModel(
         isRecording = false
         Log.d("FloatingVM", "Recording Stopped")
 
+        val duration = (System.currentTimeMillis() - recordingStartTime) / 1000
+
         try {
             mediaRecorder?.apply {
                 stop()
@@ -76,10 +86,30 @@ class FloatingViewModel(
 
             audioFile?.let { file ->
                 viewModelScope.launch {
-                    val result = audioRepository.transcribeAudio(file)
+                    val sharedPrefs = getApplication<Application>().getSharedPreferences("user_settings", Context.MODE_PRIVATE)
+                    val toneStrategy = sharedPrefs.getString("tone", ToneStrategy.AUTO.name)
+                    val manualTone = sharedPrefs.getString("manualtone", "PROFESSIONAL")
+                    
+                    val toneToSend = if (toneStrategy == ToneStrategy.GLOBAL.name) {
+                        manualTone?.lowercase() ?: "professional"
+                    } else {
+                        "auto"
+                    }
+
+                    val result = audioRepository.transcribeAudio(file, toneToSend)
                     if (result != null) {
                         Log.d("FloatingVM", "Transcription: ${result.text}")
                         SpeachrPasteAccessibilityService.pasteText(result.text)
+                        
+                        // Save to local DB
+                        dictationDao.insert(
+                            DictationEntity(
+                                text = result.text,
+                                timestamp = System.currentTimeMillis(),
+                                wordCount = result.text.split("\\s+".toRegex()).filter { it.isNotEmpty() }.size,
+                                durationSeconds = duration
+                            )
+                        )
                     } else {
                         Log.e("FloatingVM", "Transcription failed")
                         SpeachrPasteAccessibilityService.pasteText("😞 Error")

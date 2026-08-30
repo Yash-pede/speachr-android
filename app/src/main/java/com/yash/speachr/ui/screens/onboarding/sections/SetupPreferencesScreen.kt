@@ -38,9 +38,9 @@ import com.yash.speachr.ui.theme.Neutral17
 import com.yash.speachr.ui.theme.Neutral30
 import com.yash.speachr.ui.theme.Neutral99
 import androidx.core.content.edit
+import com.yash.speachr.core.model.ManualTone
+import com.yash.speachr.core.model.ToneStrategy
 
-enum class ToneStrategy { AUTO, GLOBAL }
-enum class ManualTone { CASUAL, PROFESSIONAL, NEUTRAL }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
