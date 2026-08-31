@@ -57,7 +57,7 @@ val appModule = module {
         val supabase = get<SupabaseClient>()
         HttpClient(Android) {
             defaultRequest {
-                url("http://localhost:3000/")
+                url(BuildConfig.BASE_API_UR)
             }
             install(ContentNegotiation) {
                 json(Json {

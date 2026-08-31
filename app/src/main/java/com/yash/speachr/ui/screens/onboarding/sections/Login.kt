@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.unit.sp
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.yash.speachr.BuildConfig
 import com.yash.speachr.R
 import com.yash.speachr.core.auth.AuthViewModel
 import com.yash.speachr.ui.screens.onboarding.auth.BottomSheet
@@ -47,7 +48,6 @@ import com.yash.speachr.ui.theme.Neutral99
 import com.yash.speachr.ui.theme.Taupe40
 import kotlinx.coroutines.delay
 
-const val webClientId = "813030084279-3e9so79bspta2mea1j97cmbpg2930msv.apps.googleusercontent.com"
 
 @Composable
 fun LoginOnboarding() {
@@ -79,7 +79,7 @@ fun LoginOnboarding() {
             dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow
         ), label = "cardScale"
     )
-    BottomSheet(webClientId = webClientId)
+    BottomSheet(webClientId = BuildConfig.webClientId)
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -193,7 +193,7 @@ private fun GoogleLoginButton(
         val (rawNonce, hashedNonce) = generateNonce()
         val googleIdOption = GetGoogleIdOption.Builder()
             .setFilterByAuthorizedAccounts(false)
-            .setServerClientId(webClientId)
+            .setServerClientId(BuildConfig.webClientId)
             .setNonce(hashedNonce)
             .build()
 

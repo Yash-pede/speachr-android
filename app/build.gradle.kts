@@ -15,8 +15,8 @@ android {
         applicationId = "com.yash.speachr"
         minSdk = 34
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
