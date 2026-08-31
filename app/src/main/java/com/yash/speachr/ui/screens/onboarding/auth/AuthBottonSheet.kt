@@ -36,11 +36,11 @@ fun BottomSheet(webClientId: String, authViewModel: AuthViewModel = koinViewMode
 
         // Attempt to sign in with the created request using an authorized account
         val e = authViewModel.signIn(request, context, rawNonce)
-        // If the sign-in fails with NoCredentialException,  there are no authorized accounts.
+        // If the sign-in fails with NoCredentialException, there are no authorized accounts.
         // In this case, we attempt to sign in again with filtering disabled.
         if (e is NoCredentialException) {
             val (rawNonceFalse, hashedNonceFalse) = generateNonce()
-            val googleIdOptionFalse: GetGoogleIdOption = GetGoogleIdOption.Builder()
+            val googleIdOptionFalse = GetGoogleIdOption.Builder()
                 .setFilterByAuthorizedAccounts(false)
                 .setServerClientId(webClientId)
                 .setNonce(hashedNonceFalse)
@@ -50,7 +50,6 @@ fun BottomSheet(webClientId: String, authViewModel: AuthViewModel = koinViewMode
                 .addCredentialOption(googleIdOptionFalse)
                 .build()
 
-            //We will build out this function in a moment
             authViewModel.signIn(requestFalse, context, rawNonceFalse)
         }
     }

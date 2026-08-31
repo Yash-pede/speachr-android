@@ -52,6 +52,7 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.yash.speachr.core.floating.FloatingViewModel
 import com.yash.speachr.ui.theme.*
 import kotlinx.coroutines.delay
+import org.koin.androidx.compose.KoinAndroidContext
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.component.KoinComponent
 
@@ -124,29 +125,31 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
             setViewTreeSavedStateRegistryOwner(this@FloatingService)
 
             setContent {
-                val viewModel: FloatingViewModel = koinViewModel()
-                val sharedPrefs = remember { context.getSharedPreferences("user_settings", Context.MODE_PRIVATE) }
-                
-                var baseSize by remember { mutableStateOf(sharedPrefs.getFloat("bubble_size", 1.0f)) }
-                var baseAlpha by remember { mutableStateOf(sharedPrefs.getFloat("bubble_alpha", 1.0f)) }
+                KoinAndroidContext {
+                    val viewModel: FloatingViewModel = koinViewModel()
+                    val sharedPrefs = remember { context.getSharedPreferences("user_settings", Context.MODE_PRIVATE) }
+                    
+                    var baseSize by remember { mutableStateOf(sharedPrefs.getFloat("bubble_size", 1.0f)) }
+                    var baseAlpha by remember { mutableStateOf(sharedPrefs.getFloat("bubble_alpha", 1.0f)) }
 
-                // Keep values updated (though Service might not recompose easily on SharedPreferences change unless we use a listener)
-                // For now, it will pick them up on service start or when overlay is shown.
-                
-                FloatingBubbleContent(
-                    onUpdatePosition = { dx, dy ->
-                        this@FloatingService.layoutParams.x += dx.toInt()
-                        this@FloatingService.layoutParams.y += dy.toInt()
-                        windowManager.updateViewLayout(this, this@FloatingService.layoutParams)
-                    },
-                    onCloseService = {
-                        stopSelf()
-                    },
-                    onClick = { viewModel.toggleRecording() },
-                    isRecording = viewModel.isRecording,
-                    baseSize = baseSize,
-                    baseAlpha = baseAlpha
-                )
+                    // Keep values updated (though Service might not recompose easily on SharedPreferences change unless we use a listener)
+                    // For now, it will pick them up on service start or when overlay is shown.
+                    
+                    FloatingBubbleContent(
+                        onUpdatePosition = { dx, dy ->
+                            this@FloatingService.layoutParams.x += dx.toInt()
+                            this@FloatingService.layoutParams.y += dy.toInt()
+                            windowManager.updateViewLayout(this, this@FloatingService.layoutParams)
+                        },
+                        onCloseService = {
+                            stopSelf()
+                        },
+                        onClick = { viewModel.toggleRecording() },
+                        isRecording = viewModel.isRecording,
+                        baseSize = baseSize,
+                        baseAlpha = baseAlpha
+                    )
+                }
             }
         }
 

@@ -57,7 +57,7 @@ val appModule = module {
         val supabase = get<SupabaseClient>()
         HttpClient(Android) {
             defaultRequest {
-                url(BuildConfig.BASE_API_UR)
+                url(BuildConfig.BASE_API_URL)
             }
             install(ContentNegotiation) {
                 json(Json {
@@ -99,7 +99,7 @@ val appModule = module {
     viewModel { AuthViewModel(androidApplication(), get(), get()) }
     viewModel { PermissionViewModel(androidApplication()) }
     viewModel { FloatingViewModel(androidApplication(), get(), get()) }
-    single { SubscriptionViewModel() }
+    viewModel { SubscriptionViewModel() }
     viewModel { HomeViewModel(get()) }
     viewModel { HistoryViewModel(get()) }
 }

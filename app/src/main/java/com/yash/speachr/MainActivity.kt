@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.yash.speachr.ui.theme.SpeachrTheme
+import org.koin.androidx.compose.KoinAndroidContext
 
 const val TAG = "MainActivity"
 
@@ -14,8 +15,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            SpeachrTheme {
-                SpeachrApp()
+            KoinAndroidContext {
+                SpeachrTheme {
+                    SpeachrApp()
+                }
             }
         }
     }
