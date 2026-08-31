@@ -21,6 +21,7 @@ ktor = "3.5.2"
 koin = "4.0.2"
 revenuecat = "10.15.1"
 room = "2.8.4"
+credentials = "1.6.0"
 
 
 [libraries]
@@ -66,6 +67,8 @@ revenuecat-purchases-ui = { module = "com.revenuecat.purchases:purchases-ui", ve
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
+androidx-credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 
 
 [plugins]

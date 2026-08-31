@@ -128,11 +128,11 @@ class AuthViewModel(
             e
         } catch (e: NoCredentialException) {
 //            Toast.makeText(context, failureMessage, Toast.LENGTH_SHORT).show()
-            Log.e(TAG, failureMessage + ": No credentials found", e)
+            Log.i(TAG, failureMessage + ": No credentials found")
             e
         } catch (e: GetCredentialCancellationException) {
 //            Toast.makeText(context, "Sign-in cancelled", Toast.LENGTH_SHORT).show()
-            Log.e(TAG, failureMessage + ": Sign-in was cancelled", e)
+            Log.i(TAG, failureMessage + ": Sign-in was cancelled")
             e
         } catch (e: GetCredentialCustomException) {
 //            Toast.makeText(context, failureMessage, Toast.LENGTH_SHORT).show()
