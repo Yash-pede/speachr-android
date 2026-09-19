@@ -44,19 +44,36 @@ class FloatingViewModel(
     private fun startRecording() {
         if (isRecording) return
         
+        // Check for permission first
+        val permission = android.content.pm.PackageManager.PERMISSION_GRANTED
+        val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+            getApplication(),
+            android.Manifest.permission.RECORD_AUDIO
+        ) == permission
+
+        if (!hasPermission) {
+            Log.e("FloatingVM", "Microphone permission NOT granted!")
+            SpeachrPasteAccessibilityService.pasteText("🚫 Mic Permission Required")
+            return
+        }
+
         Log.d("FloatingVM", "Recording Started")
         try {
             val cacheDir = getApplication<Application>().externalCacheDir
-            audioFile = File(cacheDir, "recording-${Instant.now().epochSecond}.3gp")
+            audioFile = File(cacheDir, "recording-${Instant.now().epochSecond}.m4a")
             
             mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 MediaRecorder(getApplication())
             } else {
                 @Suppress("DEPRECATION") MediaRecorder()
             }.apply {
+                // Using MIC as it's the most compatible
                 setAudioSource(MediaRecorder.AudioSource.MIC)
-                setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
-                setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setAudioChannels(1)
+                setAudioSamplingRate(44100)
+                setAudioEncodingBitRate(64000)
                 setOutputFile(audioFile?.absolutePath)
                 prepare()
                 start()
@@ -64,7 +81,7 @@ class FloatingViewModel(
             recordingStartTime = System.currentTimeMillis()
             isRecording = true
         } catch (e: Exception) {
-            Log.e("FloatingVM", "MediaRecorder prepare() failed", e)
+            Log.e("FloatingVM", "MediaRecorder start failed", e)
             isRecording = false
         }
     }
@@ -85,6 +102,7 @@ class FloatingViewModel(
             mediaRecorder = null
 
             audioFile?.let { file ->
+                Log.d("FloatingVM", "File saved: ${file.absolutePath}, size: ${file.length()} bytes")
                 viewModelScope.launch {
                     val sharedPrefs = getApplication<Application>().getSharedPreferences("user_settings", Context.MODE_PRIVATE)
                     val toneStrategy = sharedPrefs.getString("tone", ToneStrategy.AUTO.name)

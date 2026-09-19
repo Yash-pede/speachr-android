@@ -2,13 +2,15 @@ package com.yash.speachr.core.repository
 
 import android.util.Log
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.isSuccess
+import kotlinx.serialization.json.Json
 import java.io.File
 
 class AudioRepository(private val client: HttpClient) {
@@ -25,18 +27,29 @@ class AudioRepository(private val client: HttpClient) {
                         formData {
                             append("file", file.readBytes(), Headers.build {
                                 append(HttpHeaders.ContentDisposition, "filename=\"${file.name}\"")
+                                append(HttpHeaders.ContentType, "audio/mp4")
                             })
                             append("tone", tone)
                         }
                     )
                 )
             }
+            
+            val rawBody = response.bodyAsText()
             Log.d("AudioRepository", "Response status: ${response.status}")
-            val body = response.body<AudioTranscribeApiResponse>()
-            Log.d("AudioRepository", "Response body: $body")
-            body
+            Log.d("AudioRepository", "RAW RESPONSE: $rawBody")
+
+            if (response.status.isSuccess()) {
+                val json = Json { ignoreUnknownKeys = true }
+                val body = json.decodeFromString<AudioTranscribeApiResponse>(rawBody)
+                Log.d("AudioRepository", "Parsed body: $body")
+                body
+            } else {
+                Log.e("AudioRepository", "UPLOAD FAILED with status ${response.status}: $rawBody")
+                null
+            }
         } catch (e: Exception) {
-            Log.e("AudioRepository", "UPLOAD FAILED", e)
+            Log.e("AudioRepository", "TRANSCRIPTION ERROR", e)
             null
         }
     }

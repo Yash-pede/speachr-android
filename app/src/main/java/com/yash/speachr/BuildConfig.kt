@@ -6,7 +6,8 @@ data object BuildConfig {
 
     val REVENUECAT_API_KEY = "goog_volhhbddIoXLfYVyTwgvqqkeaEk"
 
-    val BASE_API_URL = "https://speachr.yashpede.in"
+//    val BASE_API_URL = "https://speachr-cf-workers.yashpede.workers.dev"
+    val BASE_API_URL = "http://localhost:8787/"
 
     const val webClientId = "813030084279-3e9so79bspta2mea1j97cmbpg2930msv.apps.googleusercontent.com"
 

@@ -13,7 +13,7 @@
     <uses-permission
         android:name="android.permission.FOREGROUND_SERVICE"
         tools:ignore="ForegroundServicesPolicy" />
-
+    <uses-permission android:name="com.android.vending.BILLING" />
     <application
         android:name=".SpeachrApplication"
         android:allowBackup="true"
