@@ -4,11 +4,12 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
-import android.media.MediaRecorder
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -16,7 +17,6 @@ import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -51,7 +51,7 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.yash.speachr.core.floating.FloatingViewModel
 import com.yash.speachr.ui.theme.*
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import org.koin.androidx.compose.KoinAndroidContext
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.component.KoinComponent
@@ -62,6 +62,36 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
     private lateinit var windowManager: WindowManager
     private var composeView: ComposeView? = null
     private lateinit var layoutParams: WindowManager.LayoutParams
+    
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var keyboardUpdateJob: Job? = null
+    
+    private val keyboardReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val height = intent?.getIntExtra("height", 0) ?: 0
+            
+            // Debounce keyboard updates to avoid jitter during animation
+            // We wait for the keyboard to settle before moving the bubble
+            keyboardUpdateJob?.cancel()
+            keyboardUpdateJob = serviceScope.launch {
+                delay(150) // Reduced delay for better responsiveness, but enough to debounce
+                updatePositionForKeyboard(height)
+            }
+        }
+    }
+
+    private fun updatePositionForKeyboard(keyboardHeight: Int) {
+        if (::layoutParams.isInitialized && composeView != null) {
+            // Margin from the bottom of the screen (or top of keyboard)
+            val baseMargin = 50
+            layoutParams.y = keyboardHeight + baseMargin
+            try {
+                windowManager.updateViewLayout(composeView, layoutParams)
+            } catch (e: Exception) {
+                Log.e("FloatingService", "Failed to update layout", e)
+            }
+        }
+    }
 
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val store = ViewModelStore()
@@ -71,12 +101,19 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
     override val viewModelStore: ViewModelStore get() = store
     override val savedStateRegistry: SavedStateRegistry get() = savedStateController.savedStateRegistry
 
-
     override fun onCreate() {
         super.onCreate()
         savedStateController.performRestore(null)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        
+        val filter = IntentFilter("com.yash.speachr.KEYBOARD_UPDATED")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(keyboardReceiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(keyboardReceiver, filter)
+        }
+        
         startForegroundService()
     }
 
@@ -111,12 +148,12 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            x = 100
-            y = 400
+            gravity = Gravity.BOTTOM or Gravity.END
+            x = 40
+            y = 100 // Default bottom margin
         }
 
         composeView = ComposeView(this).apply {
@@ -129,16 +166,14 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
                     val viewModel: FloatingViewModel = koinViewModel()
                     val sharedPrefs = remember { context.getSharedPreferences("user_settings", Context.MODE_PRIVATE) }
                     
-                    var baseSize by remember { mutableStateOf(sharedPrefs.getFloat("bubble_size", 1.0f)) }
-                    var baseAlpha by remember { mutableStateOf(sharedPrefs.getFloat("bubble_alpha", 1.0f)) }
-
-                    // Keep values updated (though Service might not recompose easily on SharedPreferences change unless we use a listener)
-                    // For now, it will pick them up on service start or when overlay is shown.
+                    val baseSize by remember { mutableStateOf(sharedPrefs.getFloat("bubble_size", 1.0f)) }
+                    val baseAlpha by remember { mutableStateOf(sharedPrefs.getFloat("bubble_alpha", 1.0f)) }
                     
                     FloatingBubbleContent(
                         onUpdatePosition = { dx, dy ->
-                            this@FloatingService.layoutParams.x += dx.toInt()
-                            this@FloatingService.layoutParams.y += dy.toInt()
+                            // Corrected for BOTTOM | END gravity
+                            this@FloatingService.layoutParams.x -= dx.toInt()
+                            this@FloatingService.layoutParams.y -= dy.toInt()
                             windowManager.updateViewLayout(this, this@FloatingService.layoutParams)
                         },
                         onCloseService = {
@@ -160,6 +195,8 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
 
     override fun onDestroy() {
         super.onDestroy()
+        serviceScope.cancel()
+        try { unregisterReceiver(keyboardReceiver) } catch (e: Exception) {}
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
@@ -169,9 +206,6 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
 
     override fun onBind(intent: Intent?): IBinder? = null
 }
-
-
-// --- Modularized UI Components ---
 
 @Composable
 private fun RecordingRipple(rippleScale: Float, rippleAlpha: Float) {
@@ -185,7 +219,6 @@ private fun RecordingRipple(rippleScale: Float, rippleAlpha: Float) {
 
 @Composable
 private fun SoundwaveBars(bars: List<Float>) {
-    // Canvas for drawing animated soundwave bars during recording
     Canvas(
         modifier = Modifier
             .fillMaxSize()
@@ -198,7 +231,6 @@ private fun SoundwaveBars(bars: List<Float>) {
         val maxHeight = size.height
 
         bars.forEachIndexed { index, scale ->
-            // Ensure bar is at least 20% high so it doesn't "vanish" at low points
             val barHeight = maxHeight * scale.coerceAtLeast(0.2f)
             val x = (barWidth + spacing) * index
             val y = (size.height - barHeight) / 2f
@@ -215,7 +247,6 @@ private fun SoundwaveBars(bars: List<Float>) {
 
 @Composable
 private fun IdleBubblePlaceholder() {
-    // Simple placeholder icon/dot for the idle state
     Box(
         modifier = Modifier
             .size(28.dp)
@@ -243,7 +274,6 @@ private fun FloatingBubbleContent(
         }
     }
 
-    // Main Scaling Animations
     val bubbleScale by animateFloatAsState(
         targetValue = when {
             isClosing -> 0f
@@ -260,7 +290,6 @@ private fun FloatingBubbleContent(
         label = "bubbleAlpha"
     )
 
-    // Recording State Animations
     val infiniteTransition = rememberInfiniteTransition(label = "infinite")
     val rippleScale by infiniteTransition.animateFloat(
         initialValue = 1f, targetValue = 2.4f,
@@ -327,12 +356,10 @@ private fun FloatingBubbleContent(
                 }
             }
     ) {
-        // --- Ripple Animation ---
         if (isRecording && !isDragging) {
             RecordingRipple(rippleScale, rippleAlpha)
         }
 
-        // --- Main Bubble Surface ---
         Box(
             modifier = Modifier
                 .size(64.dp)
@@ -346,7 +373,6 @@ private fun FloatingBubbleContent(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            // Static core to ensure the bubble never looks completely empty/vanished
             Box(
                 modifier = Modifier
                     .size(24.dp)

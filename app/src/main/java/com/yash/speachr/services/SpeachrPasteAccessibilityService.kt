@@ -11,6 +11,9 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.net.toUri
 
+import android.view.accessibility.AccessibilityWindowInfo
+import android.graphics.Rect
+
 class SpeachrPasteAccessibilityService : AccessibilityService() {
 
     private val TAG = "PasteService"
@@ -18,6 +21,7 @@ class SpeachrPasteAccessibilityService : AccessibilityService() {
     companion object {
 
         var instance: SpeachrPasteAccessibilityService? = null
+        var keyboardHeightPx: Int = 0
 
         fun pasteText(text: String) {
 
@@ -76,9 +80,40 @@ class SpeachrPasteAccessibilityService : AccessibilityService() {
         if (event == null) return
 
         when (event.eventType) {
-            AccessibilityEvent.TYPE_VIEW_FOCUSED, AccessibilityEvent.TYPE_VIEW_CLICKED, AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+            AccessibilityEvent.TYPE_VIEW_FOCUSED, 
+            AccessibilityEvent.TYPE_VIEW_CLICKED, 
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
+            AccessibilityEvent.TYPE_WINDOWS_CHANGED -> {
+                updateKeyboardHeight()
                 checkIfTextBoxActive()
             }
+        }
+    }
+
+    private fun updateKeyboardHeight() {
+        val windows = windows
+        val keyboardWindow = windows.find { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+        
+        if (keyboardWindow != null) {
+            val rect = Rect()
+            keyboardWindow.getBoundsInScreen(rect)
+            val screenHeight = resources.displayMetrics.heightPixels
+            // Keyboard height is the distance from the bottom of the screen to the top of the keyboard
+            val height = screenHeight - rect.top
+            if (height > 0 && height != keyboardHeightPx) {
+                keyboardHeightPx = height
+                Log.d(TAG, "Keyboard detected, height: $keyboardHeightPx")
+                // Notify FloatingService if it's running
+                val intent = Intent("com.yash.speachr.KEYBOARD_UPDATED")
+                intent.putExtra("height", keyboardHeightPx)
+                sendBroadcast(intent)
+            }
+        } else if (keyboardHeightPx != 0) {
+            keyboardHeightPx = 0
+            Log.d(TAG, "Keyboard hidden")
+            val intent = Intent("com.yash.speachr.KEYBOARD_UPDATED")
+            intent.putExtra("height", 0)
+            sendBroadcast(intent)
         }
     }
 
