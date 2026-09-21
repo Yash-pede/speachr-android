@@ -107,6 +107,7 @@ class FloatingViewModel(
                     val sharedPrefs = getApplication<Application>().getSharedPreferences("user_settings", Context.MODE_PRIVATE)
                     val toneStrategy = sharedPrefs.getString("tone", ToneStrategy.AUTO.name)
                     val manualTone = sharedPrefs.getString("manualtone", "PROFESSIONAL")
+                    val targetLanguage = sharedPrefs.getString("language", "English") ?: "English"
                     
                     val toneToSend = if (toneStrategy == ToneStrategy.GLOBAL.name) {
                         manualTone?.lowercase() ?: "professional"
@@ -114,7 +115,7 @@ class FloatingViewModel(
                         "auto"
                     }
 
-                    val result = audioRepository.transcribeAudio(file, toneToSend)
+                    val result = audioRepository.transcribeAudio(file, toneToSend, targetLanguage)
                     if (result != null) {
                         Log.d("FloatingVM", "Transcription: ${result.text}")
                         SpeachrPasteAccessibilityService.pasteText(result.text)

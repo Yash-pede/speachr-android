@@ -68,6 +68,9 @@ fun SettingsScreen(
     }
 
     // Voice & Tone Settings
+    var language by remember {
+        mutableStateOf(userSettingsSharedPerfs.getString("language", "English") ?: "English")
+    }
     var toneStrategy by remember {
         mutableStateOf(
             ToneStrategy.valueOf(
@@ -90,7 +93,7 @@ fun SettingsScreen(
     }
 
     // Sync settings to SharedPreferences
-    LaunchedEffect(bubbleSize, bubbleAlpha, toneStrategy, manualTone, autoPunctuation, autoDeleteHistory) {
+    LaunchedEffect(bubbleSize, bubbleAlpha, toneStrategy, manualTone, autoPunctuation, autoDeleteHistory, language) {
         userSettingsSharedPerfs.edit {
             putFloat("bubble_size", bubbleSize)
             putFloat("bubble_alpha", bubbleAlpha)
@@ -98,6 +101,7 @@ fun SettingsScreen(
             putString("manualtone", manualTone.name)
             putBoolean("auto_punctuation", autoPunctuation)
             putBoolean("auto_delete_history", autoDeleteHistory)
+            putString("language", language)
         }
     }
 
@@ -141,6 +145,12 @@ fun SettingsScreen(
             onSizeChange = { bubbleSize = it },
             bubbleAlpha = bubbleAlpha,
             onAlphaChange = { bubbleAlpha = it }
+        )
+
+        // --- Language Section ---
+        LanguageSettings(
+            selectedLanguage = language,
+            onLanguageChange = { language = it }
         )
 
         // --- Voice & Tone Section ---
@@ -351,6 +361,44 @@ private fun SystemPermissionsSettings(
             statusColor = if (accessibilityGranted) Color(0xFF4CAF50) else Coral40,
             onClick = { onPermissionClick(PermissionType.ACCESSIBILITY) }
         )
+    }
+}
+
+@Composable
+private fun LanguageSettings(
+    selectedLanguage: String,
+    onLanguageChange: (String) -> Unit
+) {
+    val availableLanguages = listOf(
+        "English",
+        "हिन्दी (Hindi)",
+        "Deutsch (German)",
+        "Español (Spanish)",
+        "Français (French)"
+    )
+
+    SettingsGroupCard(title = "Output Language") {
+        Text(
+            text = "Speachr will transcribe and translate your voice to this language.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Neutral30,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        @OptIn(ExperimentalLayoutApi::class)
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            availableLanguages.forEach { lang ->
+                SelectablePill(
+                    text = lang,
+                    isSelected = selectedLanguage == lang,
+                    onClick = { onLanguageChange(lang) }
+                )
+            }
+        }
     }
 }
 
