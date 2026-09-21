@@ -11,6 +11,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.yash.speachr.core.database.DictationDao
 import com.yash.speachr.core.database.DictationEntity
+import com.yash.speachr.core.model.DEFAULT_LANGUAGE_NAME
 import com.yash.speachr.core.model.ToneStrategy
 import com.yash.speachr.core.repository.AudioRepository
 import com.yash.speachr.services.SpeachrPasteAccessibilityService
@@ -28,10 +29,14 @@ class FloatingViewModel(
     var isRecording by mutableStateOf(false)
         private set
 
+    var isLoading by mutableStateOf(false)
+        private set
+
     private var audioFile: File? = null
     private var mediaRecorder: MediaRecorder? = null
 
     fun toggleRecording() {
+        if (isLoading) return
         if (isRecording) {
             stopRecording()
         } else {
@@ -104,10 +109,13 @@ class FloatingViewModel(
             audioFile?.let { file ->
                 Log.d("FloatingVM", "File saved: ${file.absolutePath}, size: ${file.length()} bytes")
                 viewModelScope.launch {
+                    isLoading = true
                     val sharedPrefs = getApplication<Application>().getSharedPreferences("user_settings", Context.MODE_PRIVATE)
                     val toneStrategy = sharedPrefs.getString("tone", ToneStrategy.AUTO.name)
                     val manualTone = sharedPrefs.getString("manualtone", "PROFESSIONAL")
-                    val targetLanguage = sharedPrefs.getString("language", "English") ?: "English"
+                    val targetLanguage =
+                        sharedPrefs.getString("language", DEFAULT_LANGUAGE_NAME)
+                            ?: DEFAULT_LANGUAGE_NAME
                     
                     val toneToSend = if (toneStrategy == ToneStrategy.GLOBAL.name) {
                         manualTone?.lowercase() ?: "professional"
@@ -115,27 +123,34 @@ class FloatingViewModel(
                         "auto"
                     }
 
-                    val result = audioRepository.transcribeAudio(file, toneToSend, targetLanguage)
-                    if (result != null) {
-                        Log.d("FloatingVM", "Transcription: ${result.text}")
-                        SpeachrPasteAccessibilityService.pasteText(result.text)
-                        
-                        // Save to local DB
-                        dictationDao.insert(
-                            DictationEntity(
-                                text = result.text,
-                                timestamp = System.currentTimeMillis(),
-                                wordCount = result.text.split("\\s+".toRegex()).filter { it.isNotEmpty() }.size,
-                                durationSeconds = duration
+                    try {
+                        val result = audioRepository.transcribeAudio(file, toneToSend, targetLanguage)
+                        if (result != null) {
+                            Log.d("FloatingVM", "Transcription: ${result.text}")
+                            SpeachrPasteAccessibilityService.pasteText(result.text)
+                            
+                            // Save to local DB
+                            dictationDao.insert(
+                                DictationEntity(
+                                    text = result.text,
+                                    timestamp = System.currentTimeMillis(),
+                                    wordCount = result.text.split("\\s+".toRegex()).filter { it.isNotEmpty() }.size,
+                                    durationSeconds = duration
+                                )
                             )
-                        )
-                    } else {
-                        Log.e("FloatingVM", "Transcription failed")
+                        } else {
+                            Log.e("FloatingVM", "Transcription failed")
+                            SpeachrPasteAccessibilityService.pasteText("😞 Error")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("FloatingVM", "Error during transcription", e)
                         SpeachrPasteAccessibilityService.pasteText("😞 Error")
-                    }
-                    // Clean up file after upload attempt
-                    if (file.exists()) {
-                        file.delete()
+                    } finally {
+                        isLoading = false
+                        // Clean up file after upload attempt
+                        if (file.exists()) {
+                            file.delete()
+                        }
                     }
                 }
             }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -27,10 +28,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.yash.speachr.R
 import com.yash.speachr.ui.theme.AppTheme
 import com.yash.speachr.ui.theme.Coral40
 import com.yash.speachr.ui.theme.Neutral10
@@ -38,8 +41,11 @@ import com.yash.speachr.ui.theme.Neutral17
 import com.yash.speachr.ui.theme.Neutral30
 import com.yash.speachr.ui.theme.Neutral99
 import androidx.core.content.edit
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yash.speachr.core.model.ManualTone
+import com.yash.speachr.core.model.TargetLanguageStore
 import com.yash.speachr.core.model.ToneStrategy
+import com.yash.speachr.ui.screens.language.LanguagePickerScreen
 
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -47,7 +53,8 @@ import com.yash.speachr.core.model.ToneStrategy
 fun SetupPreferencesScreen(
     onFinish: () -> Unit
 ) {
-    var selectedLanguage by remember { mutableStateOf("English") }
+    val selectedLanguage by TargetLanguageStore.language.collectAsStateWithLifecycle()
+    var showLanguagePicker by remember { mutableStateOf(false) }
     var toneStrategy by remember { mutableStateOf(ToneStrategy.AUTO) }
     var manualTone by remember { mutableStateOf(ManualTone.PROFESSIONAL) }
     val scrollState = rememberScrollState()
@@ -119,53 +126,14 @@ fun SetupPreferencesScreen(
             Spacer(modifier = Modifier.height(40.dp))
 
             // --- Language Section ---
-            SectionHeader(title = "Language")
+            SectionHeader(title = "Output Language")
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Available Languages
-            val availableLanguages = listOf(
-                "English",
-                "हिन्दी (Hindi)",
-                "Deutsch (German)",
-                "Español (Spanish)",
-                "Français (French)"
+            LanguagePickerRow(
+                selectedLanguage = selectedLanguage,
+                onClick = { showLanguagePicker = true }
             )
-
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                availableLanguages.forEach { lang ->
-                    SelectablePill(
-                        text = lang,
-                        isSelected = selectedLanguage == lang,
-                        enabled = true,
-                        onClick = { selectedLanguage = lang }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Coming Soon Languages
-            val comingSoonLanguages =
-                listOf("日本語 (Japanese)", "中文 (Mandarin)", "العربية (Arabic)")
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                comingSoonLanguages.forEach { lang ->
-                    SelectablePill(
-                        text = "$lang • Soon",
-                        isSelected = false,
-                        enabled = false,
-                        onClick = { }
-                    )
-                }
-            }
 
             Spacer(modifier = Modifier.height(40.dp))
 
@@ -258,11 +226,10 @@ fun SetupPreferencesScreen(
                     ) {
                         onFinish()
                         userSettingsSharedPerfs.edit {
-                            putString("language", selectedLanguage)
-                                .putString("tone", toneStrategy.toString()).putString(
-                                    "manualtone",
-                                    manualTone.toString()
-                                )
+                            putString("tone", toneStrategy.toString()).putString(
+                                "manualtone",
+                                manualTone.toString()
+                            )
                         }
                     },
                 contentAlignment = Alignment.Center
@@ -275,6 +242,56 @@ fun SetupPreferencesScreen(
                 )
             }
         }
+
+        // Full-screen picker overlay, shared with the Settings screen.
+        if (showLanguagePicker) {
+            LanguagePickerScreen(
+                selectedLanguage = selectedLanguage,
+                onDismiss = { showLanguagePicker = false },
+                onConfirm = { language ->
+                    TargetLanguageStore.set(context, language)
+                    showLanguagePicker = false
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun LanguagePickerRow(
+    selectedLanguage: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(AppTheme.glassColors.surfaceSubtle)
+            .border(1.dp, AppTheme.glassColors.border, RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = selectedLanguage,
+            color = Neutral10,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = "Change",
+            color = Coral40,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 13.sp
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Icon(
+            painter = painterResource(R.drawable.chevron_right_24px),
+            contentDescription = "Change language",
+            tint = Coral40,
+            modifier = Modifier.size(18.dp)
+        )
     }
 }
 

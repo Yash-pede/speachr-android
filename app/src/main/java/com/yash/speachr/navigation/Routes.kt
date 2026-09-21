@@ -16,6 +16,9 @@ sealed interface Routes : NavKey {
     data object Settings : NavKey
 
     @Serializable
+    data object Language : NavKey
+
+    @Serializable
     data object Paywall : NavKey
 
 }

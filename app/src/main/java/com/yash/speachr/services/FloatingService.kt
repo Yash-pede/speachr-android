@@ -18,6 +18,7 @@ import android.view.WindowManager
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -89,6 +90,30 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
                 windowManager.updateViewLayout(composeView, layoutParams)
             } catch (e: Exception) {
                 Log.e("FloatingService", "Failed to update layout", e)
+            }
+        }
+    }
+
+    /**
+     * Keeps the screen awake while a transcription is in flight by toggling the
+     * FLAG_KEEP_SCREEN_ON flag on our overlay window. This is scoped to our window only,
+     * requires no permission and is automatically cleared when the flag is removed or the
+     * view is detached.
+     */
+    private fun updateKeepScreenOn(keepOn: Boolean) {
+        if (::layoutParams.isInitialized && composeView != null) {
+            val alreadyOn = (layoutParams.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) != 0
+            if (alreadyOn == keepOn) return
+
+            layoutParams.flags = if (keepOn) {
+                layoutParams.flags or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+            } else {
+                layoutParams.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON.inv()
+            }
+            try {
+                windowManager.updateViewLayout(composeView, layoutParams)
+            } catch (e: Exception) {
+                Log.e("FloatingService", "Failed to update screen-on flag", e)
             }
         }
     }
@@ -179,8 +204,12 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
                         onCloseService = {
                             stopSelf()
                         },
+                        onLoadingStateChanged = { keepOn ->
+                            updateKeepScreenOn(keepOn)
+                        },
                         onClick = { viewModel.toggleRecording() },
                         isRecording = viewModel.isRecording,
+                        isLoading = viewModel.isLoading,
                         baseSize = baseSize,
                         baseAlpha = baseAlpha
                     )
@@ -256,16 +285,92 @@ private fun IdleBubblePlaceholder() {
 }
 
 @Composable
+private fun LoadingSpinner() {
+    val infiniteTransition = rememberInfiniteTransition(label = "loading")
+
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1100, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+
+    val pulse by infiniteTransition.animateFloat(
+        initialValue = 0.75f,
+        targetValue = 1.15f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(700, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse"
+    )
+
+    Box(contentAlignment = Alignment.Center) {
+        // Soft coral glow that gently breathes behind the spinner
+        Canvas(
+            modifier = Modifier
+                .size(44.dp)
+                .graphicsLayer {
+                    scaleX = pulse
+                    scaleY = pulse
+                    alpha = 0.35f
+                }
+        ) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Coral40.copy(alpha = 0.9f), Color.Transparent)
+                )
+            )
+        }
+
+        // Rotating gradient arc
+        Canvas(
+            modifier = Modifier
+                .size(30.dp)
+                .graphicsLayer { rotationZ = rotation }
+        ) {
+            drawArc(
+                brush = Brush.sweepGradient(
+                    colors = listOf(Color.Transparent, Coral40, Coral80)
+                ),
+                startAngle = 0f,
+                sweepAngle = 300f,
+                useCenter = false,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = 3.dp.toPx(),
+                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+                )
+            )
+        }
+    }
+}
+
+@Composable
 private fun FloatingBubbleContent(
     onUpdatePosition: (dx: Float, dy: Float) -> Unit,
     onCloseService: () -> Unit,
+    onLoadingStateChanged: (Boolean) -> Unit,
     onClick: () -> Unit,
     isRecording: Boolean,
+    isLoading: Boolean = false,
     baseSize: Float = 1.0f,
     baseAlpha: Float = 1.0f
 ) {
     var isDragging by remember { mutableStateOf(false) }
     var isClosing by remember { mutableStateOf(false) }
+
+    // Notify the service so it can keep the screen awake only while loading.
+    LaunchedEffect(isLoading) {
+        onLoadingStateChanged(isLoading)
+    }
+
+    // Ensure the keep-awake flag is always cleared if the bubble leaves composition.
+    DisposableEffect(Unit) {
+        onDispose { onLoadingStateChanged(false) }
+    }
 
     LaunchedEffect(isClosing) {
         if (isClosing) {
@@ -277,6 +382,7 @@ private fun FloatingBubbleContent(
     val bubbleScale by animateFloatAsState(
         targetValue = when {
             isClosing -> 0f
+            isLoading -> 0.9f * baseSize
             isDragging -> 1.15f * baseSize
             isRecording -> 1.05f * baseSize
             else -> 1f * baseSize
@@ -337,26 +443,30 @@ private fun FloatingBubbleContent(
                 scaleY = bubbleScale
                 alpha = bubbleAlpha
             }
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = { onClick() },
-                    onLongPress = {
-                        isClosing = true
-                    },
-                )
+            .pointerInput(isLoading) {
+                if (!isLoading) {
+                    detectTapGestures(
+                        onTap = { onClick() },
+                        onLongPress = {
+                            isClosing = true
+                        },
+                    )
+                }
             }
-            .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { isDragging = true },
-                    onDragEnd = { isDragging = false },
-                    onDragCancel = { isDragging = false }
-                ) { change, dragAmount ->
-                    change.consume()
-                    onUpdatePosition(dragAmount.x, dragAmount.y)
+            .pointerInput(isLoading) {
+                if (!isLoading) {
+                    detectDragGestures(
+                        onDragStart = { isDragging = true },
+                        onDragEnd = { isDragging = false },
+                        onDragCancel = { isDragging = false }
+                    ) { change, dragAmount ->
+                        change.consume()
+                        onUpdatePosition(dragAmount.x, dragAmount.y)
+                    }
                 }
             }
     ) {
-        if (isRecording && !isDragging) {
+        if (isRecording && !isDragging && !isLoading) {
             RecordingRipple(rippleScale, rippleAlpha)
         }
 
@@ -365,25 +475,38 @@ private fun FloatingBubbleContent(
                 .size(64.dp)
                 .clip(CircleShape)
                 .background(
-                    brush = if (isRecording) {
-                        Brush.linearGradient(listOf(Coral40, Coral80))
+                    brush = when {
+                        isLoading -> Brush.linearGradient(listOf(Neutral17, Neutral10))
+                        isRecording -> Brush.linearGradient(listOf(Coral40, Coral80))
+                        else -> Brush.linearGradient(listOf(Neutral17, Neutral10))
+                    }
+                )
+                .then(
+                    if (isLoading) {
+                        Modifier.border(
+                            width = 1.5.dp,
+                            brush = Brush.linearGradient(listOf(Coral40, Coral80)),
+                            shape = CircleShape
+                        )
                     } else {
-                        Brush.linearGradient(listOf(Neutral17, Neutral10))
+                        Modifier
                     }
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.1f))
-            )
+            if (!isLoading) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.1f))
+                )
+            }
 
-            if (isRecording) {
-                SoundwaveBars(bars)
-            } else {
-                IdleBubblePlaceholder()
+            when {
+                isLoading -> LoadingSpinner()
+                isRecording -> SoundwaveBars(bars)
+                else -> IdleBubblePlaceholder()
             }
         }
     }

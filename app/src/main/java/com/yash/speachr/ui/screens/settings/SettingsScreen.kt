@@ -32,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yash.speachr.R
 import com.yash.speachr.core.billing.SubscriptionViewModel
 import com.yash.speachr.core.model.ManualTone
+import com.yash.speachr.core.model.TargetLanguageStore
 import com.yash.speachr.core.model.ToneStrategy
 import com.yash.speachr.core.permissions.PermissionViewModel
 import com.yash.speachr.ui.theme.*
@@ -41,6 +42,7 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun SettingsScreen(
     onNavigateToPaywall: () -> Unit,
+    onNavigateToLanguage: () -> Unit,
     permissionViewModel: PermissionViewModel = koinViewModel(),
     subscriptionViewModel: SubscriptionViewModel = koinViewModel()
 ) {
@@ -67,10 +69,10 @@ fun SettingsScreen(
         mutableStateOf(userSettingsSharedPerfs.getFloat("bubble_alpha", 1.0f))
     }
 
+    // Output language lives in a shared store so it stays in sync with the picker screen.
+    val language by TargetLanguageStore.language.collectAsStateWithLifecycle()
+
     // Voice & Tone Settings
-    var language by remember {
-        mutableStateOf(userSettingsSharedPerfs.getString("language", "English") ?: "English")
-    }
     var toneStrategy by remember {
         mutableStateOf(
             ToneStrategy.valueOf(
@@ -93,7 +95,7 @@ fun SettingsScreen(
     }
 
     // Sync settings to SharedPreferences
-    LaunchedEffect(bubbleSize, bubbleAlpha, toneStrategy, manualTone, autoPunctuation, autoDeleteHistory, language) {
+    LaunchedEffect(bubbleSize, bubbleAlpha, toneStrategy, manualTone, autoPunctuation, autoDeleteHistory) {
         userSettingsSharedPerfs.edit {
             putFloat("bubble_size", bubbleSize)
             putFloat("bubble_alpha", bubbleAlpha)
@@ -101,7 +103,6 @@ fun SettingsScreen(
             putString("manualtone", manualTone.name)
             putBoolean("auto_punctuation", autoPunctuation)
             putBoolean("auto_delete_history", autoDeleteHistory)
-            putString("language", language)
         }
     }
 
@@ -148,9 +149,9 @@ fun SettingsScreen(
         )
 
         // --- Language Section ---
-        LanguageSettings(
+        LanguageSettingRow(
             selectedLanguage = language,
-            onLanguageChange = { language = it }
+            onClick = onNavigateToLanguage
         )
 
         // --- Voice & Tone Section ---
@@ -365,39 +366,40 @@ private fun SystemPermissionsSettings(
 }
 
 @Composable
-private fun LanguageSettings(
+private fun LanguageSettingRow(
     selectedLanguage: String,
-    onLanguageChange: (String) -> Unit
+    onClick: () -> Unit
 ) {
-    val availableLanguages = listOf(
-        "English",
-        "हिन्दी (Hindi)",
-        "Deutsch (German)",
-        "Español (Spanish)",
-        "Français (French)"
-    )
-
     SettingsGroupCard(title = "Output Language") {
         Text(
             text = "Speachr will transcribe and translate your voice to this language.",
             style = MaterialTheme.typography.bodySmall,
             color = Neutral30,
-            modifier = Modifier.padding(bottom = 16.dp)
+            modifier = Modifier.padding(bottom = 12.dp)
         )
 
-        @OptIn(ExperimentalLayoutApi::class)
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(Neutral17.copy(alpha = 0.04f))
+                .clickable { onClick() }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            availableLanguages.forEach { lang ->
-                SelectablePill(
-                    text = lang,
-                    isSelected = selectedLanguage == lang,
-                    onClick = { onLanguageChange(lang) }
-                )
-            }
+            Text(
+                text = selectedLanguage,
+                fontWeight = FontWeight.Bold,
+                color = Neutral10,
+                fontSize = 15.sp,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                painter = painterResource(R.drawable.chevron_right_24px),
+                contentDescription = "Change language",
+                tint = Neutral30.copy(alpha = 0.5f),
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
