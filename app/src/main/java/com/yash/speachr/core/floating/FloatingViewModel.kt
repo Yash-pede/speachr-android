@@ -15,6 +15,8 @@ import com.yash.speachr.core.model.DEFAULT_LANGUAGE_NAME
 import com.yash.speachr.core.model.ToneStrategy
 import com.yash.speachr.core.repository.AudioRepository
 import com.yash.speachr.services.SpeachrPasteAccessibilityService
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.File
 import java.time.Instant
@@ -35,6 +37,15 @@ class FloatingViewModel(
     private var audioFile: File? = null
     private var mediaRecorder: MediaRecorder? = null
 
+    private var transcriptionJob: Job? = null
+
+    /**
+     * Bumped every time a transcription starts or is cancelled. The in-flight coroutine only
+     * touches [isLoading] while its token is still current, so cancelling and immediately
+     * starting a new recording can't clobber the newer request's state.
+     */
+    private var transcriptionToken = 0
+
     fun toggleRecording() {
         if (isLoading) return
         if (isRecording) {
@@ -42,6 +53,20 @@ class FloatingViewModel(
         } else {
             startRecording()
         }
+    }
+
+    /**
+     * Drops the in-flight transcription request. Nothing is pasted into the target app and
+     * nothing is saved to history — the bubble just falls back to its idle state.
+     */
+    fun cancelTranscription() {
+        if (!isLoading) return
+
+        Log.d("FloatingVM", "Transcription cancelled by user")
+        transcriptionToken++
+        transcriptionJob?.cancel()
+        transcriptionJob = null
+        isLoading = false
     }
 
     private var recordingStartTime: Long = 0
@@ -108,7 +133,8 @@ class FloatingViewModel(
 
             audioFile?.let { file ->
                 Log.d("FloatingVM", "File saved: ${file.absolutePath}, size: ${file.length()} bytes")
-                viewModelScope.launch {
+                val token = ++transcriptionToken
+                transcriptionJob = viewModelScope.launch {
                     isLoading = true
                     val sharedPrefs = getApplication<Application>().getSharedPreferences("user_settings", Context.MODE_PRIVATE)
                     val toneStrategy = sharedPrefs.getString("tone", ToneStrategy.AUTO.name)
@@ -125,6 +151,14 @@ class FloatingViewModel(
 
                     try {
                         val result = audioRepository.transcribeAudio(file, toneToSend, targetLanguage)
+
+                        // The user may have tapped stop while we were waiting. Bail out before
+                        // touching the target app, so a cancelled request never pastes anything.
+                        if (token != transcriptionToken) {
+                            Log.d("FloatingVM", "Transcription discarded (request cancelled)")
+                            return@launch
+                        }
+
                         if (result != null) {
                             Log.d("FloatingVM", "Transcription: ${result.text}")
                             SpeachrPasteAccessibilityService.pasteText(result.text)
@@ -142,11 +176,18 @@ class FloatingViewModel(
                             Log.e("FloatingVM", "Transcription failed")
                             SpeachrPasteAccessibilityService.pasteText("😞 Error")
                         }
+                    } catch (e: CancellationException) {
+                        // User tapped the stop icon: drop the request silently.
+                        Log.d("FloatingVM", "Transcription request dropped")
                     } catch (e: Exception) {
                         Log.e("FloatingVM", "Error during transcription", e)
                         SpeachrPasteAccessibilityService.pasteText("😞 Error")
                     } finally {
-                        isLoading = false
+                        // Only the newest request may reset shared state.
+                        if (token == transcriptionToken) {
+                            isLoading = false
+                            transcriptionJob = null
+                        }
                         // Clean up file after upload attempt
                         if (file.exists()) {
                             file.delete()

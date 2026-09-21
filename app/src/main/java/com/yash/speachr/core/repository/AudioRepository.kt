@@ -10,6 +10,7 @@ import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.isSuccess
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import java.io.File
 
@@ -49,6 +50,11 @@ class AudioRepository(private val client: HttpClient) {
                 Log.e("AudioRepository", "UPLOAD FAILED with status ${response.status}: $rawBody")
                 null
             }
+        } catch (e: CancellationException) {
+            // Propagate cancellation so callers can tell "user aborted" apart from "request failed"
+            // (swallowing it here would look like a null result and trigger the error path).
+            Log.d("AudioRepository", "Transcription request cancelled")
+            throw e
         } catch (e: Exception) {
             Log.e("AudioRepository", "TRANSCRIPTION ERROR", e)
             null

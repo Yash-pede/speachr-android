@@ -18,7 +18,6 @@ import android.view.WindowManager
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -26,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -208,6 +209,7 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
                             updateKeepScreenOn(keepOn)
                         },
                         onClick = { viewModel.toggleRecording() },
+                        onCancel = { viewModel.cancelTranscription() },
                         isRecording = viewModel.isRecording,
                         isLoading = viewModel.isLoading,
                         baseSize = baseSize,
@@ -285,67 +287,30 @@ private fun IdleBubblePlaceholder() {
 }
 
 @Composable
-private fun LoadingSpinner() {
-    val infiniteTransition = rememberInfiniteTransition(label = "loading")
+private fun StopGlyph() {
+    val infiniteTransition = rememberInfiniteTransition(label = "stop")
 
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
+    // A slow breathe keeps the control feeling "live" without ever reading as a spinner.
+    val glyphScale by infiniteTransition.animateFloat(
+        initialValue = 0.9f,
+        targetValue = 1.05f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1100, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
-
-    val pulse by infiniteTransition.animateFloat(
-        initialValue = 0.75f,
-        targetValue = 1.15f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(700, easing = FastOutSlowInEasing),
+            animation = tween(900, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "pulse"
+        label = "glyphScale"
     )
 
-    Box(contentAlignment = Alignment.Center) {
-        // Soft coral glow that gently breathes behind the spinner
-        Canvas(
-            modifier = Modifier
-                .size(44.dp)
-                .graphicsLayer {
-                    scaleX = pulse
-                    scaleY = pulse
-                    alpha = 0.35f
-                }
-        ) {
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Coral40.copy(alpha = 0.9f), Color.Transparent)
-                )
-            )
-        }
-
-        // Rotating gradient arc
-        Canvas(
-            modifier = Modifier
-                .size(30.dp)
-                .graphicsLayer { rotationZ = rotation }
-        ) {
-            drawArc(
-                brush = Brush.sweepGradient(
-                    colors = listOf(Color.Transparent, Coral40, Coral80)
-                ),
-                startAngle = 0f,
-                sweepAngle = 300f,
-                useCenter = false,
-                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                    width = 3.dp.toPx(),
-                    cap = androidx.compose.ui.graphics.StrokeCap.Round
-                )
-            )
-        }
-    }
+    Box(
+        modifier = Modifier
+            .size(22.dp)
+            .graphicsLayer {
+                scaleX = glyphScale
+                scaleY = glyphScale
+            }
+            .clip(RoundedCornerShape(5.dp))
+            .background(Neutral99)
+    )
 }
 
 @Composable
@@ -354,6 +319,7 @@ private fun FloatingBubbleContent(
     onCloseService: () -> Unit,
     onLoadingStateChanged: (Boolean) -> Unit,
     onClick: () -> Unit,
+    onCancel: () -> Unit,
     isRecording: Boolean,
     isLoading: Boolean = false,
     baseSize: Float = 1.0f,
@@ -444,14 +410,15 @@ private fun FloatingBubbleContent(
                 alpha = bubbleAlpha
             }
             .pointerInput(isLoading) {
-                if (!isLoading) {
-                    detectTapGestures(
-                        onTap = { onClick() },
-                        onLongPress = {
-                            isClosing = true
-                        },
-                    )
-                }
+                detectTapGestures(
+                    onTap = {
+                        // While loading a tap drops the request instead of starting a new one.
+                        if (isLoading) onCancel() else onClick()
+                    },
+                    onLongPress = {
+                        if (!isLoading) isClosing = true
+                    },
+                )
             }
             .pointerInput(isLoading) {
                 if (!isLoading) {
@@ -476,20 +443,12 @@ private fun FloatingBubbleContent(
                 .clip(CircleShape)
                 .background(
                     brush = when {
-                        isLoading -> Brush.linearGradient(listOf(Neutral17, Neutral10))
-                        isRecording -> Brush.linearGradient(listOf(Coral40, Coral80))
-                        else -> Brush.linearGradient(listOf(Neutral17, Neutral10))
-                    }
-                )
-                .then(
-                    if (isLoading) {
-                        Modifier.border(
-                            width = 1.5.dp,
-                            brush = Brush.linearGradient(listOf(Coral40, Coral80)),
-                            shape = CircleShape
+                        // Recording and processing share the "active" coral surface; the icon
+                        // alone tells you what a tap does (bars = listening, square = abort).
+                        isLoading || isRecording -> Brush.linearGradient(
+                            listOf(Coral40, Coral80)
                         )
-                    } else {
-                        Modifier
+                        else -> Brush.linearGradient(listOf(Neutral17, Neutral10))
                     }
                 ),
             contentAlignment = Alignment.Center
@@ -504,10 +463,24 @@ private fun FloatingBubbleContent(
             }
 
             when {
-                isLoading -> LoadingSpinner()
+                isLoading -> StopGlyph()
                 isRecording -> SoundwaveBars(bars)
                 else -> IdleBubblePlaceholder()
             }
         }
     }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF17120F, widthDp = 220, heightDp = 220)
+@Composable
+private fun LoadingBubblePreview() {
+    FloatingBubbleContent(
+        onUpdatePosition = { _, _ -> },
+        onCloseService = {},
+        onLoadingStateChanged = {},
+        onClick = {},
+        onCancel = {},
+        isRecording = false,
+        isLoading = true
+    )
 }
