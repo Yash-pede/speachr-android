@@ -1,6 +1,7 @@
 package com.yash.speachr.ui.screens.settings
 
 import android.content.Context
+import android.content.Intent
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -31,11 +32,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yash.speachr.R
 import com.yash.speachr.core.billing.SubscriptionViewModel
+import com.yash.speachr.core.model.BubblePauseStore
 import com.yash.speachr.core.model.ManualTone
 import com.yash.speachr.core.model.TargetLanguageStore
 import com.yash.speachr.core.model.ToneStrategy
 import com.yash.speachr.core.permissions.PermissionViewModel
+import com.yash.speachr.services.FloatingService
 import com.yash.speachr.ui.theme.*
+import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 
 
@@ -147,6 +151,9 @@ fun SettingsScreen(
             bubbleAlpha = bubbleAlpha,
             onAlphaChange = { bubbleAlpha = it }
         )
+
+        // --- Pause Bubble Section ---
+        BubblePauseSettings()
 
         // --- Language Section ---
         LanguageSettingRow(
@@ -263,6 +270,121 @@ private fun FloatingBubbleSettings(
             valueRange = 0.4f..1.0f,
             colors = SliderDefaults.colors(thumbColor = Coral40, activeTrackColor = Coral40)
         )
+    }
+}
+
+@Composable
+private fun BubblePauseSettings() {
+    val context = LocalContext.current
+    val pausedUntil by BubblePauseStore.pausedUntil.collectAsStateWithLifecycle()
+
+    // Live countdown while a timed pause runs; also lifts expired pauses so every reader
+    // (this UI, the accessibility service) agrees on the state.
+    var remainingMs by remember { mutableLongStateOf(BubblePauseStore.remainingMillis() ?: 0L) }
+    LaunchedEffect(pausedUntil) {
+        while (true) {
+            remainingMs = BubblePauseStore.remainingMillis() ?: 0L
+            if (pausedUntil > 0L && pausedUntil != BubblePauseStore.INDEFINITE && remainingMs == 0L) {
+                BubblePauseStore.resume(context)
+            }
+            delay(15_000)
+        }
+    }
+
+    val isPaused = when {
+        pausedUntil == BubblePauseStore.INDEFINITE -> true
+        pausedUntil > 0L -> remainingMs > 0L
+        else -> false
+    }
+
+    val statusLine = when {
+        pausedUntil == BubblePauseStore.INDEFINITE -> "Paused until you turn it back on"
+        pausedUntil > 0L && remainingMs > 0L ->
+            "Paused · back in ${formatRemaining(remainingMs)}"
+        else -> "Active — the bubble follows your text cursor"
+    }
+
+    SettingsGroupCard(title = "Pause Bubble") {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                painter = painterResource(R.drawable.motion_mode_24px),
+                contentDescription = null,
+                tint = if (isPaused) Neutral30 else Coral40,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Background dictation", fontWeight = FontWeight.SemiBold, color = Neutral10)
+                Text(statusLine, style = MaterialTheme.typography.bodySmall, color = Neutral30)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (isPaused) {
+            // Re-enable affordance — the only way out of an indefinite pause.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Coral40)
+                    .clickable { BubblePauseStore.resume(context) }
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "Turn bubble back on",
+                    color = Neutral99,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp
+                )
+            }
+        } else {
+            Text(
+                "Pausing stops the floating bubble and its background service. " +
+                    "Your permissions and history are kept.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Neutral30
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SelectablePill(
+                    text = "1 hour",
+                    isSelected = false,
+                    onClick = { pauseBubble(context, 60 * 60 * 1000L) },
+                    modifier = Modifier.weight(1f)
+                )
+                SelectablePill(
+                    text = "8 hours",
+                    isSelected = false,
+                    onClick = { pauseBubble(context, 8 * 60 * 60 * 1000L) },
+                    modifier = Modifier.weight(1f)
+                )
+                SelectablePill(
+                    text = "For now",
+                    isSelected = false,
+                    onClick = { pauseBubble(context, null) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+/** Stops the running foreground service, then records the pause. */
+private fun pauseBubble(context: Context, durationMillis: Long?) {
+    context.stopService(Intent(context, FloatingService::class.java))
+    BubblePauseStore.pause(context, durationMillis)
+}
+
+private fun formatRemaining(millis: Long): String {
+    val totalMinutes = (millis + 59_999) / 60_000
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return when {
+        hours > 0 -> "${hours}h ${minutes}m"
+        minutes > 0 -> "${minutes}m"
+        else -> "under a minute"
     }
 }
 

@@ -10,6 +10,7 @@ import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.net.toUri
+import com.yash.speachr.core.model.BubblePauseStore
 
 import android.view.accessibility.AccessibilityWindowInfo
 import android.graphics.Rect
@@ -105,6 +106,7 @@ class SpeachrPasteAccessibilityService : AccessibilityService() {
                 Log.d(TAG, "Keyboard detected, height: $keyboardHeightPx")
                 // Notify FloatingService if it's running
                 val intent = Intent("com.yash.speachr.KEYBOARD_UPDATED")
+                intent.setPackage(packageName)
                 intent.putExtra("height", keyboardHeightPx)
                 sendBroadcast(intent)
             }
@@ -112,6 +114,7 @@ class SpeachrPasteAccessibilityService : AccessibilityService() {
             keyboardHeightPx = 0
             Log.d(TAG, "Keyboard hidden")
             val intent = Intent("com.yash.speachr.KEYBOARD_UPDATED")
+            intent.setPackage(packageName)
             intent.putExtra("height", 0)
             sendBroadcast(intent)
         }
@@ -127,6 +130,12 @@ class SpeachrPasteAccessibilityService : AccessibilityService() {
         val focusedInputNode = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
 
         if (focusedInputNode != null && focusedInputNode.isEditable) {
+            // The user paused the bubble: the foreground service must stay off entirely.
+            if (BubblePauseStore.isPaused()) {
+                stopService()
+                return
+            }
+
             val serviceIntent = Intent(this, FloatingService::class.java)
             if (Settings.canDrawOverlays(this)) {
                 startForegroundService(serviceIntent)

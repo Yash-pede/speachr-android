@@ -2,6 +2,7 @@ package com.yash.speachr
 
 import android.app.Application
 import com.yash.speachr.core.di.appModule
+import com.yash.speachr.core.model.BubblePauseStore
 import com.yash.speachr.core.model.TargetLanguageStore
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
@@ -13,8 +14,9 @@ import com.revenuecat.purchases.LogLevel
 class SpeachrApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        // Seed the persisted output language before any UI collects it.
+        // Seed persisted state before any UI collects it.
         TargetLanguageStore.init(this)
+        BubblePauseStore.init(this)
         Purchases.logLevel = LogLevel.DEBUG
         Purchases.configure(
             PurchasesConfiguration.Builder(this, BuildConfig.REVENUECAT_API_KEY)

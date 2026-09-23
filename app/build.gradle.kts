@@ -13,10 +13,10 @@ android {
 
     defaultConfig {
         applicationId = "com.yash.speachr"
-        minSdk = 34
+        minSdk = 24
         targetSdk = 37
-        versionCode = 12
-        versionName = "1.1.12"
+        versionCode = 13
+        versionName = "1.1.13"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

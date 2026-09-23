@@ -19,7 +19,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.File
-import java.time.Instant
 import android.content.Context
 
 class FloatingViewModel(
@@ -90,7 +89,7 @@ class FloatingViewModel(
         Log.d("FloatingVM", "Recording Started")
         try {
             val cacheDir = getApplication<Application>().externalCacheDir
-            audioFile = File(cacheDir, "recording-${Instant.now().epochSecond}.m4a")
+            audioFile = File(cacheDir, "recording-${System.currentTimeMillis() / 1000}.m4a")
             
             mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 MediaRecorder(getApplication())

@@ -58,6 +58,8 @@ import org.koin.androidx.compose.KoinAndroidContext
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.component.KoinComponent
 
+import androidx.core.app.NotificationCompat
+
 class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStoreOwner,
     SavedStateRegistryOwner {
 
@@ -135,7 +137,7 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
         
         val filter = IntentFilter("com.yash.speachr.KEYBOARD_UPDATED")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(keyboardReceiver, filter, Context.RECEIVER_EXPORTED)
+            registerReceiver(keyboardReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             registerReceiver(keyboardReceiver, filter)
         }
@@ -155,13 +157,16 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
             notificationManager.createNotificationChannel(channel)
         }
 
-        val notification: Notification = Notification.Builder(this, channelId)
+        val notification: Notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("Speachr is active")
             .setContentText("Tap to start dictating")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
         } else {
             startForeground(1, notification)
@@ -173,7 +178,12 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
         layoutParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            },
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
