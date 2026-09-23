@@ -66,6 +66,9 @@ fun OnboardingInfoScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Neutral99)
+            // Insets are applied after the background so it stays full-bleed edge-to-edge,
+            // while content (incl. bottom buttons) clears the nav/status bars and IME.
+            .safeDrawingPadding()
     ) {
         Column(
             modifier = Modifier

@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -110,7 +110,9 @@ fun LanguagePickerScreen(
         modifier = modifier
             .fillMaxSize()
             .background(Neutral99)
-            .systemBarsPadding()
+            // safeDrawing (not systemBars) so the search field's keyboard pushes the list
+            // instead of covering the Done button.
+            .safeDrawingPadding()
     ) {
         LanguagePickerTopBar(onBack = onDismiss)
 

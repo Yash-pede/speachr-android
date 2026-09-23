@@ -42,15 +42,14 @@ fun SpeachrApp(
 
         AuthState.Authenticated -> {
             if (!permissionsGranted) {
+                // Already onboarded — only show the permission gate so the wizard never
+                // replays from the start when returning from system settings.
                 OnboardingScreen(
-                    isAlreadyAuthenticated = true,
-                    onOnboardingComplete = {
-
-                    },
-                    forceStep = 4, // Permissions step
+                    onOnboardingComplete = {},
+                    permissionGateOnly = true,
                     initialPermissionStep = if (!micGranted) 0
                     else if (!overlayGranted) 1
-                    else if(!batteryOptimizationGranted) 2
+                    else if (!batteryOptimizationGranted) 2
                     else if (!accessibilityGranted) 3
                     else 0
                 )

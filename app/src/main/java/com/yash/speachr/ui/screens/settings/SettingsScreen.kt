@@ -2,7 +2,6 @@ package com.yash.speachr.ui.screens.settings
 
 import android.content.Context
 import android.content.Intent
-import androidx.annotation.DrawableRes
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -19,10 +18,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
@@ -36,10 +35,15 @@ import com.yash.speachr.core.model.BubblePauseStore
 import com.yash.speachr.core.model.ManualTone
 import com.yash.speachr.core.model.TargetLanguageStore
 import com.yash.speachr.core.model.ToneStrategy
-import com.yash.speachr.core.permissions.PermissionViewModel
 import com.yash.speachr.services.FloatingService
+import com.yash.speachr.ui.components.SectionCard
+import com.yash.speachr.ui.components.SelectablePill
+import com.yash.speachr.ui.components.SettingToggleRow
 import com.yash.speachr.ui.theme.*
 import kotlinx.coroutines.delay
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.seconds
 import org.koin.androidx.compose.koinViewModel
 
 
@@ -47,7 +51,6 @@ import org.koin.androidx.compose.koinViewModel
 fun SettingsScreen(
     onNavigateToPaywall: () -> Unit,
     onNavigateToLanguage: () -> Unit,
-    permissionViewModel: PermissionViewModel = koinViewModel(),
     subscriptionViewModel: SubscriptionViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
@@ -55,12 +58,6 @@ fun SettingsScreen(
     val userSettingsSharedPerfs = remember {
         context.getSharedPreferences("user_settings", Context.MODE_PRIVATE)
     }
-
-    // Permission States
-    val micGranted by permissionViewModel.micGranted.collectAsStateWithLifecycle()
-    val overlayGranted by permissionViewModel.overlayGranted.collectAsStateWithLifecycle()
-    val batteryIgnored by permissionViewModel.batteryIgnored.collectAsStateWithLifecycle()
-    val accessibilityGranted by permissionViewModel.accessibilityGranted.collectAsStateWithLifecycle()
 
     // Subscription State
     val isPro = subscriptionViewModel.isPro
@@ -114,7 +111,6 @@ fun SettingsScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                permissionViewModel.checkPermissions()
                 subscriptionViewModel.updateCustomerInfo()
             }
         }
@@ -171,22 +167,6 @@ fun SettingsScreen(
             onAutoPunctuationChange = { autoPunctuation = it }
         )
 
-        // --- Permissions Section ---
-        SystemPermissionsSettings(
-            micGranted = micGranted,
-            overlayGranted = overlayGranted,
-            batteryIgnored = batteryIgnored,
-            accessibilityGranted = accessibilityGranted,
-            onPermissionClick = { permissionType ->
-                when (permissionType) {
-                    PermissionType.MIC -> permissionViewModel.openMicSettings(context)
-                    PermissionType.OVERLAY -> permissionViewModel.openOverlaySettings(context)
-                    PermissionType.BATTERY -> permissionViewModel.openBatterySettings(context)
-                    PermissionType.ACCESSIBILITY -> permissionViewModel.openAccessibilitySettings(context)
-                }
-            }
-        )
-
         // --- Privacy Section ---
         DataPrivacySettings(
             autoDeleteHistory = autoDeleteHistory,
@@ -235,7 +215,7 @@ private fun FloatingBubbleSettings(
     bubbleAlpha: Float,
     onAlphaChange: (Float) -> Unit
 ) {
-    SettingsGroupCard(title = "Floating Bubble") {
+    SectionCard(title = "Floating Bubble") {
         // Preview
         Box(
             modifier = Modifier
@@ -284,10 +264,12 @@ private fun BubblePauseSettings() {
     LaunchedEffect(pausedUntil) {
         while (true) {
             remainingMs = BubblePauseStore.remainingMillis() ?: 0L
-            if (pausedUntil > 0L && pausedUntil != BubblePauseStore.INDEFINITE && remainingMs == 0L) {
+            // A positive timestamp (unlike INDEFINITE, which is negative) means a timed pause
+            // that has just lapsed — clear it so the bubble can come back.
+            if (pausedUntil > 0L && remainingMs == 0L) {
                 BubblePauseStore.resume(context)
             }
-            delay(15_000)
+            delay(15.seconds)
         }
     }
 
@@ -298,13 +280,14 @@ private fun BubblePauseSettings() {
     }
 
     val statusLine = when {
-        pausedUntil == BubblePauseStore.INDEFINITE -> "Paused until you turn it back on"
+        pausedUntil == BubblePauseStore.INDEFINITE ->
+            "Paused — nothing will re-enable it automatically"
         pausedUntil > 0L && remainingMs > 0L ->
             "Paused · back in ${formatRemaining(remainingMs)}"
-        else -> "Active — the bubble follows your text cursor"
+        else -> "Active — the bubble appears when you tap a text field"
     }
 
-    SettingsGroupCard(title = "Pause Bubble") {
+    SectionCard(title = "Pause Bubble") {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 painter = painterResource(R.drawable.motion_mode_24px),
@@ -341,40 +324,86 @@ private fun BubblePauseSettings() {
             }
         } else {
             Text(
-                "Pausing stops the floating bubble and its background service. " +
+                "Pausing completely stops the bubble and its background service. " +
                     "Your permissions and history are kept.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Neutral30
             )
             Spacer(modifier = Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SelectablePill(
-                    text = "1 hour",
-                    isSelected = false,
-                    onClick = { pauseBubble(context, 60 * 60 * 1000L) },
-                    modifier = Modifier.weight(1f)
-                )
-                SelectablePill(
-                    text = "8 hours",
-                    isSelected = false,
-                    onClick = { pauseBubble(context, 8 * 60 * 60 * 1000L) },
-                    modifier = Modifier.weight(1f)
-                )
-                SelectablePill(
-                    text = "For now",
-                    isSelected = false,
-                    onClick = { pauseBubble(context, null) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
+
+            PauseOption(
+                title = "For 1 hour",
+                subtitle = "Turns itself back on",
+                onClick = { pauseBubble(context, 1.hours) }
+            )
+            PauseOption(
+                title = "For 8 hours",
+                subtitle = "Turns itself back on",
+                onClick = { pauseBubble(context, 8.hours) }
+            )
+            PauseOption(
+                title = "Until tomorrow",
+                subtitle = "Turns itself back on",
+                onClick = { pauseBubble(context, 24.hours) }
+            )
+            PauseOption(
+                title = "Until I turn it back on",
+                subtitle = "Stays off — nothing will re-enable it for you",
+                highlight = true,
+                onClick = { pauseBubble(context, null) }
+            )
         }
     }
 }
 
-/** Stops the running foreground service, then records the pause. */
-private fun pauseBubble(context: Context, durationMillis: Long?) {
+/**
+ * A tappable pause-duration row. The subtitle spells out whether the pause ends by itself,
+ * which the old single-word "For now" chip left ambiguous.
+ */
+@Composable
+private fun PauseOption(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    highlight: Boolean = false
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (highlight) Coral40.copy(alpha = 0.06f) else Neutral17.copy(alpha = 0.03f)
+            )
+            .border(
+                width = 1.dp,
+                color = if (highlight) Coral40.copy(alpha = 0.35f) else AppTheme.glassColors.border,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.SemiBold, color = Neutral10, fontSize = 15.sp)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Neutral30)
+        }
+        Icon(
+            painter = painterResource(R.drawable.pause_24px),
+            contentDescription = null,
+            tint = if (highlight) Coral40 else Neutral30.copy(alpha = 0.6f),
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+/**
+ * Stops the running foreground service, then records the pause. Pass `null` to pause until the
+ * user re-enables it manually.
+ */
+private fun pauseBubble(context: Context, duration: Duration?) {
     context.stopService(Intent(context, FloatingService::class.java))
-    BubblePauseStore.pause(context, durationMillis)
+    BubblePauseStore.pause(context, duration?.inWholeMilliseconds)
 }
 
 private fun formatRemaining(millis: Long): String {
@@ -397,7 +426,7 @@ private fun VoiceToneSettings(
     autoPunctuation: Boolean,
     onAutoPunctuationChange: (Boolean) -> Unit
 ) {
-    SettingsGroupCard(title = "Voice & Tone") {
+    SectionCard(title = "Voice & Tone") {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             StrategyCard(
                 title = "Smart Auto-Detect",
@@ -445,54 +474,12 @@ private fun VoiceToneSettings(
     }
 }
 
-enum class PermissionType { MIC, OVERLAY, BATTERY, ACCESSIBILITY }
-
-@Composable
-private fun SystemPermissionsSettings(
-    micGranted: Boolean,
-    overlayGranted: Boolean,
-    batteryIgnored: Boolean,
-    accessibilityGranted: Boolean,
-    onPermissionClick: (PermissionType) -> Unit
-) {
-    SettingsGroupCard(title = "System Permissions") {
-        SettingLinkRow(
-            icon = R.drawable.mic_24px,
-            title = "Microphone",
-            status = if (micGranted) "Granted" else "Missing",
-            statusColor = if (micGranted) Color(0xFF4CAF50) else Coral40,
-            onClick = { onPermissionClick(PermissionType.MIC) }
-        )
-        SettingLinkRow(
-            icon = R.drawable.settings_voice_24px,
-            title = "Display Over Apps",
-            status = if (overlayGranted) "Granted" else "Missing",
-            statusColor = if (overlayGranted) Color(0xFF4CAF50) else Coral40,
-            onClick = { onPermissionClick(PermissionType.OVERLAY) }
-        )
-        SettingLinkRow(
-            icon = R.drawable.battery_full_24px,
-            title = "Battery Optimization",
-            status = if (batteryIgnored) "Optimized" else "Required",
-            statusColor = if (batteryIgnored) Color(0xFF4CAF50) else Gold40,
-            onClick = { onPermissionClick(PermissionType.BATTERY) }
-        )
-        SettingLinkRow(
-            icon = R.drawable.grain_24px,
-            title = "Accessibility Service",
-            status = if (accessibilityGranted) "Active" else "Required",
-            statusColor = if (accessibilityGranted) Color(0xFF4CAF50) else Coral40,
-            onClick = { onPermissionClick(PermissionType.ACCESSIBILITY) }
-        )
-    }
-}
-
 @Composable
 private fun LanguageSettingRow(
     selectedLanguage: String,
     onClick: () -> Unit
 ) {
-    SettingsGroupCard(title = "Output Language") {
+    SectionCard(title = "Output Language") {
         Text(
             text = "Speachr will transcribe and translate your voice to this language.",
             style = MaterialTheme.typography.bodySmall,
@@ -531,7 +518,7 @@ private fun DataPrivacySettings(
     autoDeleteHistory: Boolean,
     onAutoDeleteHistoryChange: (Boolean) -> Unit
 ) {
-    SettingsGroupCard(title = "Data & Privacy") {
+    SectionCard(title = "Data & Privacy") {
         SettingToggleRow(
             icon = R.drawable.warning_24px,
             title = "Auto-Delete History",
@@ -545,49 +532,6 @@ private fun DataPrivacySettings(
 // ------------------------------------------------------------------------------------------------
 // Reusable UI Components
 // ------------------------------------------------------------------------------------------------
-
-@Composable
-private fun SettingsGroupCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(AppTheme.glassColors.surface)
-            .border(1.dp, AppTheme.glassColors.border, RoundedCornerShape(24.dp))
-            .padding(20.dp)
-    ) {
-        Text(text = title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Coral40, modifier = Modifier.padding(bottom = 16.dp))
-        content()
-    }
-}
-
-@Composable
-private fun SettingToggleRow(@DrawableRes icon: Int, title: String, subtitle: String, isChecked: Boolean, onToggleChange: (Boolean) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Icon(painter = painterResource(icon), contentDescription = title, tint = Neutral10, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.SemiBold, color = Neutral10)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Neutral30)
-        }
-        Switch(checked = isChecked, onCheckedChange = onToggleChange, colors = SwitchDefaults.colors(checkedThumbColor = Neutral99, checkedTrackColor = Coral40))
-    }
-}
-
-@Composable
-private fun SettingLinkRow(@DrawableRes icon: Int, title: String, status: String, statusColor: Color, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(painter = painterResource(icon), contentDescription = title, tint = Neutral10, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(title, fontWeight = FontWeight.SemiBold, color = Neutral10, modifier = Modifier.weight(1f))
-        Text(status, color = statusColor, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-        Spacer(modifier = Modifier.width(8.dp))
-        Icon(painter = painterResource(R.drawable.chevron_right_24px), contentDescription = "Open", tint = Neutral30.copy(alpha = 0.5f))
-    }
-}
 
 @Composable
 private fun StrategyCard(title: String, description: String, isSelected: Boolean, onClick: () -> Unit) {
@@ -612,19 +556,26 @@ private fun StrategyCard(title: String, description: String, isSelected: Boolean
     }
 }
 
+@Preview(showBackground = true, widthDp = 400)
 @Composable
-private fun SelectablePill(text: String, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val backgroundColor = if (isSelected) Coral40 else Neutral99.copy(alpha = 0.5f)
-    val textColor = if (isSelected) Neutral99 else Neutral10
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(backgroundColor)
-            .border(1.dp, if (isSelected) Color.Transparent else Neutral30.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-            .clickable { onClick() }
-            .padding(vertical = 10.dp, horizontal = 16.dp),
-        contentAlignment = Alignment.Center
+private fun PauseOptionsPreview() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Neutral99)
+            .padding(24.dp)
     ) {
-        Text(text = text, color = textColor, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal, fontSize = 14.sp)
+        SectionCard(title = "Pause Bubble") {
+            PauseOption(title = "For 1 hour", subtitle = "Turns itself back on", onClick = {})
+            PauseOption(title = "For 8 hours", subtitle = "Turns itself back on", onClick = {})
+            PauseOption(title = "Until tomorrow", subtitle = "Turns itself back on", onClick = {})
+            PauseOption(
+                title = "Until I turn it back on",
+                subtitle = "Stays off — nothing will re-enable it for you",
+                highlight = true,
+                onClick = {}
+            )
+        }
     }
 }
+

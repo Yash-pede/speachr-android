@@ -50,7 +50,17 @@ fun AppNavigation(modifier: Modifier = Modifier) {
             backStack = backStack,
             onBack = { backStack.removeLastOrNull() },
             entryProvider = entryProvider {
-                entry<Routes.Home> { HomeScreen() }
+                entry<Routes.Home> {
+                    HomeScreen(
+                        onSeeAllHistory = {
+                            // Mirror the bottom bar's top-level swap so the back stack stays flat.
+                            if (backStack.lastOrNull() != Routes.History) {
+                                backStack.removeLastOrNull()
+                                backStack.add(Routes.History)
+                            }
+                        }
+                    )
+                }
                 entry<Routes.History> { HistoryScreen() }
                 entry<Routes.Settings> {
                     SettingsScreen(

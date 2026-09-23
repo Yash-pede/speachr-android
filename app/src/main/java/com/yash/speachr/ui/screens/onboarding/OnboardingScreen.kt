@@ -14,19 +14,39 @@ import com.yash.speachr.ui.screens.onboarding.sections.PermissionsOnboardingScre
 import com.yash.speachr.ui.screens.onboarding.sections.SetupPreferencesScreen
 import org.koin.androidx.compose.koinViewModel
 
+/**
+ * Hosts the first-run wizard.
+ *
+ * Two modes:
+ *  - **Wizard** (default): the full Welcome → Info → How it works → Preferences → Permissions flow.
+ *  - **Permission gate** ([permissionGateOnly] = true): only the permissions step, for users who
+ *    already finished onboarding but are missing a permission. This prevents the wizard from
+ *    replaying from the start every time they return from system settings.
+ */
 @Composable
 fun OnboardingScreen(
     isAlreadyAuthenticated: Boolean = false,
     onOnboardingComplete: () -> Unit = {},
     forceStep: Int? = null,
     initialPermissionStep: Int = 0,
+    permissionGateOnly: Boolean = false,
     authViewModel: AuthViewModel = koinViewModel()
 ) {
 
+    // --- Permission gate: no wizard, no state machine, no persisted-step writes ---
+    if (permissionGateOnly) {
+        PermissionsOnboardingScreen(
+            initialPage = initialPermissionStep,
+            onFinish = onOnboardingComplete
+        )
+        return
+    }
+
     val steps = OnboardingStep.all
+    val persistedStep = authViewModel.getOnboardingStep()
 
     var currentIndex by rememberSaveable {
-        mutableIntStateOf(forceStep ?: authViewModel.getOnboardingStep())
+        mutableIntStateOf(forceStep ?: persistedStep)
     }
 
     // Update currentIndex if forceStep changes
@@ -34,9 +54,12 @@ fun OnboardingScreen(
         forceStep?.let { currentIndex = it }
     }
 
-    // Save step whenever it changes
+    // Persist progress, but never let it regress — returning from a permission prompt used to
+    // reset the saved step and force the user to walk through every screen again.
     LaunchedEffect(currentIndex) {
-        authViewModel.updateOnboardingStep(currentIndex)
+        if (currentIndex > persistedStep) {
+            authViewModel.updateOnboardingStep(currentIndex)
+        }
     }
 
     // Auto-advance if we just authenticated

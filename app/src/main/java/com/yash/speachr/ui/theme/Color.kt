@@ -58,7 +58,10 @@ val Error20 = Color(0xFF690005)
 
 val GlassSurfaceLight = Color(0xCCFFFFFF)      // ~80% white
 val GlassSurfaceLightSubtle = Color(0x99FFFFFF) // ~60% white, for layered cards
-val GlassBorderLight = Color(0x33FFFFFF)
+// Warm dark hairline. Was 0x33FFFFFF (~20% white), which is invisible against the
+// near-white Neutral99 background — so cards had no visible edge. This gives every
+// glass card a clear, soft boundary.
+val GlassBorderLight = Color(0x2B231A16)
 val GlassTintLight = Color(0x14E37054)          // faint brand tint over the blur
 
 val GlassSurfaceDark = Color(0xCC1C1613)

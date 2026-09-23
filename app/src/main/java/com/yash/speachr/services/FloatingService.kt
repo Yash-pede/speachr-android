@@ -18,8 +18,11 @@ import android.view.WindowManager
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -36,8 +39,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -54,11 +59,13 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.yash.speachr.core.floating.FloatingViewModel
 import com.yash.speachr.ui.theme.*
 import kotlinx.coroutines.*
+import kotlin.time.Duration.Companion.milliseconds
 import org.koin.androidx.compose.KoinAndroidContext
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.component.KoinComponent
 
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 
 class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStoreOwner,
     SavedStateRegistryOwner {
@@ -78,7 +85,7 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
             // We wait for the keyboard to settle before moving the bubble
             keyboardUpdateJob?.cancel()
             keyboardUpdateJob = serviceScope.launch {
-                delay(150) // Reduced delay for better responsiveness, but enough to debounce
+                delay(150.milliseconds) // Long enough to let the keyboard settle
                 updatePositionForKeyboard(height)
             }
         }
@@ -136,11 +143,14 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         
         val filter = IntentFilter("com.yash.speachr.KEYBOARD_UPDATED")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(keyboardReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(keyboardReceiver, filter)
-        }
+        // ContextCompat handles the API 33+ "not exported" flag and the legacy signature,
+        // so this single call is correct across our whole minSdk 24..37 range.
+        ContextCompat.registerReceiver(
+            this,
+            keyboardReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
         
         startForegroundService()
     }
@@ -164,9 +174,9 @@ class FloatingService : Service(), KoinComponent, LifecycleOwner, ViewModelStore
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        // FOREGROUND_SERVICE_TYPE_MICROPHONE only exists from API 30 (R). Below that the type
+        // is taken from the manifest's foregroundServiceType="microphone" instead.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
         } else {
             startForeground(1, notification)
@@ -337,6 +347,7 @@ private fun FloatingBubbleContent(
 ) {
     var isDragging by remember { mutableStateOf(false) }
     var isClosing by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
 
     // Notify the service so it can keep the screen awake only while loading.
     LaunchedEffect(isLoading) {
@@ -420,25 +431,57 @@ private fun FloatingBubbleContent(
                 alpha = bubbleAlpha
             }
             .pointerInput(isLoading) {
-                detectTapGestures(
-                    onTap = {
-                        // While loading a tap drops the request instead of starting a new one.
-                        if (isLoading) onCancel() else onClick()
-                    },
-                    onLongPress = {
-                        if (!isLoading) isClosing = true
-                    },
-                )
-            }
-            .pointerInput(isLoading) {
-                if (!isLoading) {
-                    detectDragGestures(
-                        onDragStart = { isDragging = true },
-                        onDragEnd = { isDragging = false },
-                        onDragCancel = { isDragging = false }
-                    ) { change, dragAmount ->
-                        change.consume()
-                        onUpdatePosition(dragAmount.x, dragAmount.y)
+                if (isLoading) {
+                    // While a request is in flight the bubble is just a stop button.
+                    detectTapGestures { onCancel() }
+                } else {
+                    // One detector for tap / long-press / drag. Stacking detectTapGestures and
+                    // detectDragGestures used to let the drag detector swallow sub-slop jitter,
+                    // which silently cancelled long press — so only taps ever worked.
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        var dragging = false
+
+                        // Race the touch slop against the long-press timeout to decide the gesture.
+                        val decided = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                            awaitTouchSlopOrCancellation(down.id) { change, over ->
+                                change.consume()
+                                dragging = true
+                                isDragging = true
+                                onUpdatePosition(over.x, over.y)
+                            }
+                            true
+                        }
+
+                        when {
+                            decided == null -> {
+                                // Held past the long-press timeout — dismiss the bubble.
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                isClosing = true
+                                waitForUpOrCancellation()
+                            }
+
+                            dragging -> {
+                                // Keep moving until the finger lifts.
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                    if (!change.pressed) break
+                                    val delta = change.position - change.previousPosition
+                                    if (delta != Offset.Zero) {
+                                        change.consume()
+                                        onUpdatePosition(delta.x, delta.y)
+                                    }
+                                }
+                            }
+
+                            else -> {
+                                // Lifted without moving — that's a tap.
+                                onClick()
+                            }
+                        }
+
+                        isDragging = false
                     }
                 }
             }

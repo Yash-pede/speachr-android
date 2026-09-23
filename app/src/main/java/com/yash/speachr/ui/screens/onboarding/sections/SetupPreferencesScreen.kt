@@ -1,7 +1,6 @@
 package com.yash.speachr.ui.screens.onboarding.sections
 
 import android.content.Context
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.animation.expandVertically
@@ -45,6 +44,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yash.speachr.core.model.ManualTone
 import com.yash.speachr.core.model.TargetLanguageStore
 import com.yash.speachr.core.model.ToneStrategy
+import com.yash.speachr.ui.components.SectionHeader
+import com.yash.speachr.ui.components.SelectablePill
 import com.yash.speachr.ui.screens.language.LanguagePickerScreen
 
 
@@ -79,6 +80,8 @@ fun SetupPreferencesScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Neutral99)
+            // Insets after background keep it full-bleed while content clears the system bars.
+            .safeDrawingPadding()
     ) {
         Column(
             modifier = Modifier
@@ -292,83 +295,6 @@ private fun LanguagePickerRow(
             tint = Coral40,
             modifier = Modifier.size(18.dp)
         )
-    }
-}
-
-@Composable
-fun SectionHeader(title: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = Neutral10
-        )
-        Box(
-            modifier = Modifier
-                .height(1.dp)
-                .weight(1f)
-                .background(Neutral30.copy(alpha = 0.2f))
-        )
-    }
-}
-
-
-// ------------------------------------------------------------------------------------------------
-// Reusable Selectable Pill (For Languages & Tones)
-// ------------------------------------------------------------------------------------------------
-@Composable
-fun SelectablePill(
-    text: String,
-    isSelected: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val backgroundColor by animateColorAsState(
-        targetValue = when {
-            isSelected -> Coral40
-            enabled -> AppTheme.glassColors.surfaceSubtle
-            else -> Neutral30.copy(alpha = 0.05f)
-        }, label = "pillBg"
-    )
-
-    val borderColor = when {
-        isSelected -> Color.Transparent
-        enabled -> AppTheme.glassColors.border
-        else -> Color.Transparent
-    }
-
-    val textColor = when {
-        isSelected -> Neutral99
-        enabled -> Neutral10
-        else -> Neutral30.copy(alpha = 0.4f)
-    }
-
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(backgroundColor)
-            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
-            .then(if (enabled) Modifier.clickable { onClick() } else Modifier)
-            .padding(vertical = 12.dp, horizontal = 20.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = text,
-                color = textColor,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                fontSize = 14.sp
-            )
-        }
     }
 }
 

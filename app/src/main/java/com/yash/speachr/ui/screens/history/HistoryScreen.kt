@@ -1,6 +1,5 @@
 package com.yash.speachr.ui.screens.history
 
-import androidx.annotation.DrawableRes
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -33,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yash.speachr.R
 import com.yash.speachr.core.database.DictationEntity
+import com.yash.speachr.ui.components.ActionChip
 import com.yash.speachr.ui.screens.history.viewmodel.HistoryViewModel
 import com.yash.speachr.ui.theme.*
 import org.koin.androidx.compose.koinViewModel
@@ -242,29 +242,13 @@ private fun HistoryCard(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                ActionButton(icon = R.drawable.content_copy_24px, label = "Copy", color = Coral40)
+                ActionChip(icon = R.drawable.content_copy_24px, label = "Copy", color = Coral40, onClick = {})
                 Spacer(modifier = Modifier.width(12.dp))
-                ActionButton(icon = R.drawable.share_windows_24px, label = "Share", color = Neutral30)
+                ActionChip(icon = R.drawable.share_windows_24px, label = "Share", color = Neutral30, onClick = {})
                 Spacer(modifier = Modifier.width(12.dp))
-                ActionButton(icon = R.drawable.delete_24px, label = "Delete", color = Color(0xFFBA1A1A), onClick = onDelete)
+                ActionChip(icon = R.drawable.delete_24px, label = "Delete", color = Color(0xFFBA1A1A), onClick = onDelete)
             }
         }
-    }
-}
-
-@Composable
-private fun ActionButton(@DrawableRes icon: Int, label: String, color: Color, onClick: () -> Unit = {}) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(color.copy(alpha = 0.1f))
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(painter = painterResource(id = icon), contentDescription = label, tint = color, modifier = Modifier.size(16.dp))
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(label, color = color, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
     }
 }
 

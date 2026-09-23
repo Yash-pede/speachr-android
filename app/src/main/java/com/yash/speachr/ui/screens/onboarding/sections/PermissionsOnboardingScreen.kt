@@ -172,6 +172,8 @@ fun PermissionsOnboardingScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Neutral99)
+            // Insets after background keep it full-bleed while content clears the system bars.
+            .safeDrawingPadding()
     ) {
         Column(
             modifier = Modifier

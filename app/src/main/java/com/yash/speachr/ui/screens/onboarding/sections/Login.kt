@@ -83,7 +83,10 @@ fun LoginOnboarding() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Neutral99), contentAlignment = Alignment.Center
+            .background(Neutral99)
+            // Insets after background keep it full-bleed while content clears the system bars.
+            .safeDrawingPadding(),
+        contentAlignment = Alignment.Center
     ) {
         // --- Animated Background Orbs ---
         Canvas(modifier = Modifier.fillMaxSize()) {
